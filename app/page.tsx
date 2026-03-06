@@ -167,15 +167,19 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="hero-side">
-          <div className="hero-panel">
-            <div className="radar">
-              <span className="pulse" />
-            </div>
-            <div className="panel-copy">
-              <p>Current Objective</p>
-              <h3>Reach Confidence Rank A</h3>
-              <p>Complete 3 missions this week and unlock your certificate badge.</p>
-            </div>
+          <div className="hero-avatar-img">
+            <img
+              src="/Hero-avatar.png"
+              alt="Hero avatar"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                objectPosition: 'center top',
+                mixBlendMode: 'lighten',
+                display: 'block',
+              }}
+            />
           </div>
         </div>
       </section>

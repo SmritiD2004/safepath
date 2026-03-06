@@ -77,16 +77,24 @@ Scenario score integrity:
 
 ## Game Modes
 
-- New mode-specific scenario route: `/mode/:mode/:id`
-- Supported mode slugs:
-  - `simulation`
-  - `puzzle`
-  - `role-play`
-  - `strategy`
-  - `story`
-- Legacy scenario route still works: `/scenario/:id`
-- Both routes use the same gameplay/scoring engine (`ScenarioCore`) and same scenario-run APIs.
-- Dashboard scenario cards now route to mode URLs and include a mode filter tab bar.
+SafePath includes five interconnected game modes, each targeting specific safety‑training skills:
+
+- **Simulation Mode** – First‑person realistic scenarios with branching decisions that instantly update the Risk Meter and trigger AI Safety Coach feedback.
+- **Puzzle Mode** – Text‑based red‑flag identification challenges that teach manipulation‑pattern recognition.
+- **Role‑Play Mode** – Free‑form chat with AI‑powered NPCs to practice assertive communication.
+- **Strategy Mode** – Planning and resource‑management before safety‑critical events, allowing users to allocate time, routes, tools, and contacts.
+- **Story Mode** – Long‑form narrative journeys for empathy and reflective decision‑making, with cumulative EQ and confidence tracking.
+
+All modes share a unified scoring service (`lib/scoring.ts`) and use the central AI Safety Coach for feedback.
+
+Supported mode‑specific routes:
+- `/mode/simulation/:id`
+- `/mode/puzzle/:id`
+- `/mode/role-play/:id`
+- `/mode/strategy/:id`
+- `/mode/story/:id`
+
+Legacy scenario route still works: `/scenario/:id`.
 
 Design system updates:
 - Added reusable avatar component: `app/components/Avatar.tsx`

@@ -10,7 +10,7 @@
   min-height: 100vh;
   color: var(--text);
   background: radial-gradient(circle at 20% 20%, #3b1a3f 0%, #1c102a 38%, #11091d 100%);
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .space-bg {
@@ -43,7 +43,7 @@
 .hud-inner {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 14px 16px;
+  padding: 25px 27px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -113,6 +113,8 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 20px;
+  /* don't clip the avatar */
+  overflow: visible;
 }
 
 .hero-copy {
@@ -173,45 +175,22 @@
   color: #f2c7dd;
 }
 
+/* ── HERO SIDE ── */
 .hero-side {
   position: relative;
+  z-index: 1;
+  /* on mobile hide it so text is readable */
+  display: none;
 }
 
-.hero-panel {
-  border: 1px solid var(--line);
-  background: linear-gradient(140deg, var(--panel), rgba(6, 16, 30, 0.92));
-  border-radius: 24px;
-  padding: 20px;
-  display: grid;
-  grid-template-columns: 84px 1fr;
-  gap: 16px;
-}
-
-.radar {
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 162, 205, 0.56);
-  background: radial-gradient(circle, rgba(255, 145, 194, 0.3), rgba(26, 12, 32, 0.2));
-  position: relative;
-}
-
-.pulse {
-  position: absolute;
-  inset: 20px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 181, 222, 0.95);
-  animation: pulse 2s ease-out infinite;
-}
-
-.panel-copy p {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.panel-copy h3 {
-  margin: 6px 0;
-  font-size: 1.35rem;
+.hero-avatar-img {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  overflow: hidden;
+  /* soft left edge blend */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 18%, black 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 18%, black 100%);
 }
 
 .section {
@@ -561,9 +540,34 @@ html[data-theme='light'] .loop-step {
     padding: 0;
   }
 
+  /* Two-column grid: copy left, avatar right — matches Figma exactly */
   .hero {
-    grid-template-columns: 1.2fr 0.8fr;
-    align-items: end;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
     padding-top: 108px;
+    padding-bottom: 40px;
+    /* allow avatar to reach page edges */
+    max-width: 100%;
+    padding-left: calc((100vw - 1120px) / 2 + 16px);
+    padding-right: 0;
+    gap: 0;
+  }
+
+  .hero-copy {
+    padding-right: 40px;
+  }
+
+  .hero-side {
+    display: block;
+    /* full height of the hero row */
+    align-self: stretch;
+  }
+
+  .hero-avatar-img {
+    height: 100%;
+    min-height: 520px;
+    /* left-edge fade only */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 14%, black 100%);
+    mask-image: linear-gradient(to right, transparent 0%, black 14%, black 100%);
   }
 }
