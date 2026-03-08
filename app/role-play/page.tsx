@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useMemo, useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import SCENARIOS from '@/lib/scenarios'
@@ -40,6 +40,11 @@ export default function RolePlayPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   async function startSession() {
     if (!selectedScenarioId) return
@@ -58,7 +63,7 @@ export default function RolePlayPage() {
         {
           id: `sys-${Date.now()}`,
           speaker: 'SYSTEM',
-          content: 'Role-play started. Set a clear boundary and prioritize your safety in each turn.',
+          content: 'Role-play session started. Practice setting clear boundaries and prioritizing your safety in each turn.',
         },
       ])
     } catch (e) {
@@ -101,7 +106,6 @@ export default function RolePlayPage() {
         })
         const data = await fallback.json()
         if (!fallback.ok) throw new Error(data?.error || 'Role-play response failed.')
-
         setMessages((prev) =>
           prev.map((m) => (m.id === npcId ? { ...m, content: String(data.reply || '') } : m))
         )
@@ -143,187 +147,326 @@ export default function RolePlayPage() {
 
   const selectedScenario = selectedScenarioId ? SCENARIOS[selectedScenarioId] : null
 
+  // Compute assertiveness signal from last USER message
+  const lastUserMsg = [...messages].reverse().find(m => m.speaker === 'USER')?.content?.toLowerCase() ?? ''
+  const assertivenessScore = lastUserMsg
+    ? Math.min(100, Math.max(10,
+        (lastUserMsg.includes('no') ? 25 : 0) +
+        (lastUserMsg.includes('stop') ? 25 : 0) +
+        (lastUserMsg.includes('boundary') ? 20 : 0) +
+        (lastUserMsg.includes('leave') ? 20 : 0) +
+        (lastUserMsg.includes('help') ? 15 : 0) +
+        (lastUserMsg.length > 20 ? 10 : 0) -
+        (lastUserMsg.includes('maybe') ? 20 : 0) -
+        (lastUserMsg.includes('sorry') ? 15 : 0) -
+        (lastUserMsg.includes('okay') ? 10 : 0)
+      ))
+    : 50
+
+  const assertColor = assertivenessScore >= 70 ? '#00ffcc' : assertivenessScore >= 40 ? '#ffc06b' : '#ff4f7a'
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: 980, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>Product Depth</div>
-            <h1 style={{ fontFamily: 'var(--font-display)', color: 'var(--text)', fontSize: 32 }}>
-              <DecryptedText
-                text="Role-Play Mode"
-                animateOn="view"
-                sequential
-                speed={30}
-                className=""
-                encryptedClassName=""
+    <div className="game-page" style={{ minHeight: '100vh' }}>
+      <div className="space-bg" aria-hidden="true" />
+
+      {/* HUD nav */}
+      <header style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
+        padding: '14px 20px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+        background: 'rgba(3,9,20,0.9)', backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(255,176,214,0.18)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)', boxShadow: '0 0 14px var(--accent)', display: 'inline-block' }} />
+          <span style={{ fontFamily: 'var(--font-orbitron)', fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text)' }}>
+            SafePath Arena
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--muted)', paddingLeft: 4 }}>/ Role-Play Mode</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {authStatus === 'authenticated' && (
+            <Link href="/settings" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>
+              <Avatar
+                src={authSession?.user?.image}
+                alt="Profile"
+                size={30}
+                fallbackText={(authSession?.user?.name?.[0] ?? 'U').toUpperCase()}
               />
-            </h1>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {authStatus === 'authenticated' && (
-              <Link
-                href="/settings"
-                title="Profile settings"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textDecoration: 'none',
-                }}
-              >
-                <Avatar
-                  src={authSession?.user?.image}
-                  alt="Profile avatar"
-                  size={36}
-                  fallbackText={(authSession?.user?.name?.[0] ?? 'U').toUpperCase()}
-                />
-              </Link>
-            )}
-            <Link href="/dashboard" className="btn-ghost" style={{ fontSize: 12, padding: '8px 12px' }}>
-              Back to Dashboard
             </Link>
-          </div>
+          )}
+          <Link href="/dashboard" style={{
+            fontSize: 11, color: 'var(--muted)', textDecoration: 'none',
+            padding: '6px 12px', border: '1px solid rgba(255,176,214,0.2)', borderRadius: 8, letterSpacing: '0.06em',
+          }}>
+            ← Dashboard
+          </Link>
+        </div>
+      </header>
+
+      <main style={{ maxWidth: 1080, margin: '0 auto', padding: '80px 20px 40px' }}>
+
+        {/* Page heading */}
+        <div style={{ marginBottom: 20 }}>
+          <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 4 }}>Interactive Training</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.6rem, 4vw, 2.4rem)', color: 'var(--text)', fontWeight: 800, lineHeight: 1 }}>
+            <DecryptedText text="Role-Play Arena" animateOn="view" sequential speed={25} className="" encryptedClassName="" />
+          </h1>
         </div>
 
-        <div className="card" style={{ padding: 16, marginBottom: 12 }}>
-          <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '2fr 1fr', alignItems: 'end' }}>
-            <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Role-Play Scenario
-              <select
-                value={selectedScenarioId}
-                onChange={(ev) => setSelectedScenarioId(ev.target.value)}
-                style={{ marginTop: 6, width: '100%' }}
-                disabled={Boolean(session && session.status === 'IN_PROGRESS')}
-              >
+        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16, alignItems: 'start' }} className="roleplay-grid">
+
+          {/* ── LEFT: scenario selector ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* Scenario cards */}
+            <div style={{
+              background: 'rgba(9,18,36,0.82)', border: '1px solid rgba(255,176,214,0.2)',
+              borderRadius: 18, padding: '18px 16px',
+            }}>
+              <div style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--muted)', fontFamily: 'var(--font-orbitron)', marginBottom: 12 }}>SELECT SCENARIO</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {rolePlayScenarios.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.title}
-                  </option>
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => !session?.status || session.status !== 'IN_PROGRESS' ? setSelectedScenarioId(s.id) : undefined}
+                    disabled={Boolean(session && session.status === 'IN_PROGRESS')}
+                    style={{
+                      textAlign: 'left',
+                      borderRadius: 12,
+                      border: `1px solid ${selectedScenarioId === s.id ? 'var(--accent)' : 'rgba(255,176,214,0.18)'}`,
+                      background: selectedScenarioId === s.id ? 'rgba(255,127,170,0.12)' : 'rgba(255,255,255,0.02)',
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>{s.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.category} · {s.duration}</div>
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
+
+            {/* Scenario context */}
+            {selectedScenario && (
+              <div style={{
+                background: 'rgba(9,18,36,0.82)',
+                border: '1px solid rgba(255,176,214,0.25)',
+                borderLeft: '3px solid var(--accent)',
+                borderRadius: 12,
+                padding: '16px 18px',
+              }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--accent)', marginBottom: 10, fontFamily: 'var(--font-orbitron)' }}>SCENARIO BRIEF</div>
+                <p style={{ fontSize: 15, color: 'var(--text)', lineHeight: 1.7, fontWeight: 400 }}>{selectedScenario.context}</p>
+              </div>
+            )}
+
+            {/* Start button */}
             <StarBorder
               as="button"
               type="button"
               onClick={startSession}
-              disabled={loading || (session?.status === 'IN_PROGRESS')}
+              disabled={loading || session?.status === 'IN_PROGRESS'}
               color="#ffb0d6"
               speed="7s"
+              thickness={1.2}
               style={{ width: '100%' }}
             >
-              {session?.status === 'IN_PROGRESS' ? 'Session Active' : 'Start Session'}
+              {session?.status === 'IN_PROGRESS' ? '◉ Session Active' : '▶ Start Session'}
             </StarBorder>
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))',
-              gap: 8,
-              marginTop: 10,
-            }}
-          >
-            {rolePlayScenarios.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setSelectedScenarioId(s.id)}
-                disabled={Boolean(session && session.status === 'IN_PROGRESS')}
-                style={{
-                  textAlign: 'left',
-                  borderRadius: 12,
-                  border: `1px solid ${selectedScenarioId === s.id ? 'var(--wine)' : 'var(--border)'}`,
-                  background: selectedScenarioId === s.id ? 'rgba(255,111,145,0.16)' : 'rgba(255,255,255,0.03)',
-                  padding: '10px 11px',
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{s.title}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {s.category} · {s.duration}
+
+            {/* Metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+              {[
+                { label: 'Risk', value: session?.currentRisk ?? 40, color: '#ff6f91' },
+                { label: 'Conf', value: session?.currentConfidence ?? 50, color: '#89f7ff' },
+                { label: 'EQ', value: session?.currentEq ?? 50, color: '#ffc4dd' },
+              ].map((m) => (
+                <div key={m.label} style={{
+                  background: 'rgba(9,18,36,0.7)', border: `1px solid ${m.color}33`,
+                  borderRadius: 10, padding: '10px 8px', textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: 'var(--font-orbitron)', letterSpacing: '0.08em', marginBottom: 4 }}>{m.label.toUpperCase()}</div>
+                  <div style={{ fontSize: 20, fontFamily: 'var(--font-mono)', color: m.color, fontWeight: 700 }}>{m.value}%</div>
+                  <div style={{ height: 3, borderRadius: 999, background: 'rgba(255,255,255,0.06)', marginTop: 4 }}>
+                    <div style={{ height: '100%', width: `${m.value}%`, borderRadius: 999, background: m.color }} />
+                  </div>
                 </div>
-              </button>
-            ))}
-          </div>
-          {selectedScenario && (
-            <p style={{ marginTop: 10, fontSize: 13, color: 'var(--text-muted)' }}>{selectedScenario.context}</p>
-          )}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 8, marginBottom: 12 }}>
-          {[
-            { label: 'Risk', value: session?.currentRisk ?? 40, color: '#ff8ab2' },
-            { label: 'Confidence', value: session?.currentConfidence ?? 50, color: '#ff5b90' },
-            { label: 'EQ', value: session?.currentEq ?? 50, color: '#ffc4dd' },
-          ].map((m) => (
-            <div key={m.label} className="card" style={{ padding: 12 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{m.label}</div>
-              <div style={{ color: m.color, fontWeight: 800, fontSize: 24 }}>{m.value}%</div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <div className="card" style={{ padding: 14 }}>
-          <div style={{ minHeight: 340, maxHeight: 460, overflowY: 'auto', display: 'grid', gap: 8, paddingRight: 4 }}>
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 10,
-                  border: '1px solid var(--border)',
-                  background:
-                    m.speaker === 'USER'
-                      ? 'rgba(123,29,58,0.10)'
-                      : m.speaker === 'NPC'
-                        ? 'var(--bg-card)'
-                        : 'var(--bg-2)',
-                }}
-              >
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{m.speaker}</div>
-                <div style={{ fontSize: 14, color: 'var(--text)' }}>{m.content || '...'}</div>
-              </div>
-            ))}
-            {messages.length === 0 && (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                Start a role-play session to begin practicing dialog turns.
+            {/* Assertiveness meter */}
+            {messages.some(m => m.speaker === 'USER') && (
+              <div style={{
+                background: 'rgba(9,18,36,0.7)', border: `1px solid ${assertColor}33`,
+                borderRadius: 12, padding: '12px 14px',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 10, letterSpacing: '0.08em', fontFamily: 'var(--font-orbitron)', color: 'var(--muted)' }}>ASSERTIVENESS</span>
+                  <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: assertColor, fontWeight: 700 }}>{assertivenessScore}%</span>
+                </div>
+                <div style={{ height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', width: `${assertivenessScore}%`,
+                    borderRadius: 999, background: assertColor,
+                    transition: 'width 0.6s ease, background 0.4s ease',
+                    boxShadow: `0 0 10px ${assertColor}88`,
+                  }} />
+                </div>
+                <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 6 }}>
+                  {assertivenessScore >= 70 ? '✦ Strong boundary language detected' :
+                   assertivenessScore >= 40 ? '◈ Moderate – try using firmer language' :
+                   '⚠ Weak response detected – assert your boundary'}
+                </p>
               </div>
             )}
           </div>
 
-          <form onSubmit={sendMessage} style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-            <input
-              className="input-field"
-              placeholder="Type your response..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={!session || session.status !== 'IN_PROGRESS' || loading}
-            />
-            <StarBorder
-              as="button"
-              type="submit"
-              color="#ffc4dd"
-              speed="8s"
-              disabled={!session || session.status !== 'IN_PROGRESS' || loading}
-            >
-              {loading ? 'Sending...' : 'Send'}
-            </StarBorder>
-          </form>
-        </div>
+          {/* ── RIGHT: chat area ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {session?.status === 'COMPLETED' && (
-          <div className="card" style={{ padding: 14, marginTop: 12 }}>
-            <div style={{ fontFamily: 'var(--font-display)', color: 'var(--wine)', fontWeight: 800 }}>
-              Role-Play Completed
+            {/* Chat log */}
+            <div style={{
+              background: 'rgba(9,18,36,0.82)', border: '1px solid rgba(255,176,214,0.2)',
+              borderRadius: 18, padding: '16px',
+              minHeight: 380, maxHeight: 480, overflowY: 'auto',
+              display: 'flex', flexDirection: 'column', gap: 10,
+            }}>
+              {messages.length === 0 ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: 0.5 }}>
+                  <div style={{ fontSize: 36 }}>🎭</div>
+                  <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>
+                    Select a scenario and press Start Session to begin practicing.
+                  </p>
+                </div>
+              ) : (
+                messages.map((m) => (
+                  <div key={m.id} style={{
+                    display: 'flex',
+                    flexDirection: m.speaker === 'USER' ? 'row-reverse' : 'row',
+                    gap: 10,
+                    alignItems: 'flex-start',
+                  }}>
+                    {/* Avatar dot */}
+                    <div style={{
+                      width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 14,
+                      background: m.speaker === 'USER' ? 'rgba(255,127,170,0.2)' :
+                                  m.speaker === 'NPC' ? 'rgba(9,18,36,0.8)' : 'rgba(255,192,107,0.15)',
+                      border: `1px solid ${m.speaker === 'USER' ? 'rgba(255,127,170,0.4)' :
+                                          m.speaker === 'NPC' ? 'rgba(137,247,255,0.3)' : 'rgba(255,192,107,0.3)'}`,
+                    }}>
+                      {m.speaker === 'USER' ? '👤' : m.speaker === 'NPC' ? '🎭' : 'ℹ'}
+                    </div>
+                    {/* Bubble */}
+                    <div style={{
+                      maxWidth: '78%',
+                      padding: '10px 14px',
+                      borderRadius: m.speaker === 'USER' ? '14px 14px 4px 14px' :
+                                   m.speaker === 'NPC' ? '14px 14px 14px 4px' : '12px',
+                      background: m.speaker === 'USER' ? 'rgba(255,127,170,0.12)' :
+                                  m.speaker === 'NPC' ? 'rgba(9,18,36,0.6)' : 'rgba(255,192,107,0.08)',
+                      border: `1px solid ${m.speaker === 'USER' ? 'rgba(255,127,170,0.25)' :
+                                           m.speaker === 'NPC' ? 'rgba(137,247,255,0.15)' : 'rgba(255,192,107,0.2)'}`,
+                    }}>
+                      <div style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--muted)', fontFamily: 'var(--font-orbitron)', marginBottom: 4 }}>
+                        {m.speaker}
+                      </div>
+                      <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.5 }}>
+                        {m.content || <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>typing…</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              Outcome: {session.outcome ?? 'partial'} | Final Confidence: {session.finalConfidence ?? session.currentConfidence}% | Final EQ: {session.finalEq ?? session.currentEq}% | Final Risk: {session.finalRisk ?? session.currentRisk}%
-            </div>
+
+            {/* Input form */}
+            <form onSubmit={sendMessage} style={{ display: 'flex', gap: 10 }}>
+              <input
+                style={{
+                  flex: 1, padding: '13px 16px',
+                  background: 'rgba(9,18,36,0.9)',
+                  border: '1px solid rgba(255,176,214,0.25)',
+                  borderRadius: 12,
+                  color: 'var(--text)',
+                  fontSize: 14,
+                  outline: 'none',
+                  fontFamily: 'var(--font-body)',
+                }}
+                placeholder={session?.status === 'IN_PROGRESS' ? "Type your response and assert your boundary…" : "Start a session first…"}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={!session || session.status !== 'IN_PROGRESS' || loading}
+              />
+              <StarBorder
+                as="button"
+                type="submit"
+                color="#ffc4dd"
+                speed="8s"
+                thickness={1.2}
+                disabled={!session || session.status !== 'IN_PROGRESS' || loading}
+              >
+                {loading ? '…' : 'Send'}
+              </StarBorder>
+            </form>
+
+            {/* Completed banner */}
+            {session?.status === 'COMPLETED' && (
+              <div style={{
+                background: 'rgba(0,255,163,0.07)', border: '1px solid rgba(0,255,163,0.25)',
+                borderRadius: 14, padding: '16px 18px',
+              }}>
+                <div style={{ fontSize: 11, letterSpacing: '0.1em', color: '#00ffcc', fontFamily: 'var(--font-orbitron)', marginBottom: 6 }}>
+                  ✦ SESSION COMPLETE
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+                  Outcome: <span style={{ color: 'var(--text)' }}>{session.outcome ?? 'partial'}</span>
+                  {' · '}Confidence: <span style={{ color: '#89f7ff' }}>{session.finalConfidence ?? session.currentConfidence}%</span>
+                  {' · '}EQ: <span style={{ color: '#ffc4dd' }}>{session.finalEq ?? session.currentEq}%</span>
+                </div>
+                <div style={{ marginTop: 12, display: 'flex', gap: 10 }}>
+                  <StarBorder as={Link} href="/dashboard" color="#89f7ff" speed="8s" thickness={1.2}>
+                    Return to Base
+                  </StarBorder>
+                  <StarBorder
+                    as="button"
+                    type="button"
+                    onClick={() => { setSession(null); setMessages([]) }}
+                    color="#ffb0d6"
+                    speed="7s"
+                    thickness={1.2}
+                  >
+                    Try Again
+                  </StarBorder>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <p style={{ color: '#ff4f7a', fontSize: 13, padding: '8px 12px', background: 'rgba(255,79,122,0.08)', borderRadius: 8, border: '1px solid rgba(255,79,122,0.2)' }}>
+                ⚠ {error}
+              </p>
+            )}
           </div>
-        )}
+        </div>
+      </main>
 
-        {error && <p style={{ marginTop: 10, color: '#b91c1c', fontSize: 13 }}>{error}</p>}
-      </div>
+      <style>{`
+        @media (max-width: 768px) {
+          .roleplay-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+        input:focus {
+          border-color: var(--accent) !important;
+          box-shadow: 0 0 0 3px rgba(255,127,170,0.12);
+        }
+      `}</style>
     </div>
   )
 }

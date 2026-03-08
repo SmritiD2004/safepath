@@ -389,7 +389,7 @@ export default function DashboardPage() {
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '3rem 2.5rem' }}>
         <div style={{ marginBottom: 48 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--wine)', marginBottom: 10 }}>
-            Your Training Hub
+            <DecryptedText text="Your Training Hub" animateOn="view" sequential speed={20} />
           </div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(28px,5vw,44px)', fontWeight: 900, color: 'var(--text)', marginBottom: 10 }}>
             <DecryptedText
@@ -457,7 +457,7 @@ export default function DashboardPage() {
           ].map((m, i) => (
             <div key={i} className="card" style={{ padding: '24px 20px' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 10 }}>
-                {m.label}
+                <DecryptedText text={m.label} animateOn="view" sequential speed={30} />
               </div>
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 32, color: m.color, lineHeight: 1 }}>
                 {m.value}

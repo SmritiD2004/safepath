@@ -25,6 +25,7 @@ export default function ThemeToggle() {
     setTheme(nextTheme)
     applyTheme(nextTheme)
     localStorage.setItem('safepath_theme', nextTheme)
+    window.dispatchEvent(new CustomEvent('themeChanged', { detail: nextTheme }))
   }
 
   return (

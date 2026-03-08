@@ -23,6 +23,18 @@
   --grad-hero:    linear-gradient(135deg, #ff6f91 0%, #b47cff 55%, #67cbff 100%);
   --grad-impact:  linear-gradient(135deg, #ff92b0 0%, #8e87ff 50%, #5ec0ff 100%);
   --input-bg:     #ffffff;
+
+  /* Game Vibe Tokens */
+  --p: #9500ff;
+  --pL: #d6a3ff;
+  --acc: #00ffa3;
+  --acc2: #00d1ff;
+  --warn: #ffb02e;
+  --danger: #ff0055;
+  --ok: #00ffcc;
+  --muted: #818ca3;
+  --txt: #f0f2f5;
+  --bdr: rgba(149,0,255,0.15);
 }
 
 html[data-theme='light'] {
@@ -108,8 +120,14 @@ body {
   100% { background-position:  200% center; }
 }
 
+@keyframes avatarGlow {
+  0%, 100% { filter: drop-shadow(0 0 5px var(--wine-light)) brightness(1); }
+  50% { filter: drop-shadow(0 0 20px var(--wine)) brightness(1.1); }
+}
+
 .animate-fade-up   { animation: fadeUp 0.5s ease forwards; }
 .animate-spin-slow { animation: spin 0.7s linear infinite; }
+.animate-avatar-glow { animation: avatarGlow 3s ease-in-out infinite; }
 .delay-100 { animation-delay: 0.1s; }
 .delay-200 { animation-delay: 0.2s; }
 .delay-300 { animation-delay: 0.3s; }
@@ -190,6 +208,32 @@ body {
 
 .font-heading { font-family: var(--font-heading), var(--font-display), sans-serif; }
 .font-accent { font-family: var(--font-display), serif; }
+.font-orbitron { font-family: var(--font-orbitron), sans-serif; }
+.font-mono { font-family: var(--font-mono), monospace; }
+
+.glass {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+}
+
+.noise {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.05;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+.grid-bg {
+  background-image: 
+    linear-gradient(rgba(149, 0, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(149, 0, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
 
 .mode-shell {
   position: relative;

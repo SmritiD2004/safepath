@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
-import { Playfair_Display, Inter, Poppins } from 'next/font/google'
+import { Playfair_Display, Inter, Poppins, Orbitron, Space_Mono } from 'next/font/google'
 import { SessionProvider } from 'next-auth/react'
 import './globals.css'
 import ThemeToggle from './ThemeToggle'
+import BackgroundEffects from './components/BackgroundEffects'
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
@@ -25,6 +26,20 @@ const poppins = Poppins({
   display: 'swap',
 })
 
+const orbitron = Orbitron({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800', '900'],
+  variable: '--font-orbitron',
+  display: 'swap',
+})
+
+const spaceMono = Space_Mono({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  variable: '--font-mono',
+  display: 'swap',
+})
+
 export const metadata: Metadata = {
   title: 'SafePath — Train Before the Danger',
   description: "A trauma-informed serious game platform for women's safety training.",
@@ -32,7 +47,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${playfair.variable} ${inter.variable} ${poppins.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${playfair.variable} ${inter.variable} ${poppins.variable} ${orbitron.variable} ${spaceMono.variable}`}>
       <body
         suppressHydrationWarning
         style={{
@@ -40,11 +55,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           background: 'var(--bg)',
           color: 'var(--text)',
           minHeight: '100vh',
+          position: 'relative'
         }}
       >
         <SessionProvider>
-          {children}
-          <ThemeToggle />
+          <BackgroundEffects />
+          <div style={{ position: 'relative', zIndex: 10 }}>
+            {children}
+            <ThemeToggle />
+          </div>
         </SessionProvider>
       </body>
     </html>

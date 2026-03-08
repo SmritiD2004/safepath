@@ -43,7 +43,7 @@
 .hud-inner {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 25px 27px;
+  padding: 16px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -181,16 +181,17 @@
   z-index: 1;
   /* on mobile hide it so text is readable */
   display: none;
+  overflow: visible;
 }
 
 .hero-avatar-img {
   width: 100%;
   height: 100%;
-  min-height: 420px;
-  overflow: hidden;
+  min-height: 560px;
+  overflow: visible;
   /* soft left edge blend */
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 18%, black 100%);
-  mask-image: linear-gradient(to right, transparent 0%, black 18%, black 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 14%, black 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 14%, black 100%);
 }
 
 .section {
@@ -540,32 +541,38 @@ html[data-theme='light'] .loop-step {
     padding: 0;
   }
 
-  /* Two-column grid: copy left, avatar right — matches Figma exactly */
+  /* Two-column: copy left 46%, avatar right 54% — more space for the large image */
   .hero {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 40fr 60fr;
     align-items: center;
-    padding-top: 108px;
-    padding-bottom: 40px;
-    /* allow avatar to reach page edges */
+    padding-top: 100px;
+    padding-bottom: 0;
+    /* allow avatar to bleed to the right page edge */
     max-width: 100%;
     padding-left: calc((100vw - 1120px) / 2 + 16px);
     padding-right: 0;
     gap: 0;
+    /* let the image overflow upward */
+    overflow: visible;
   }
 
   .hero-copy {
     padding-right: 40px;
+    padding-bottom: 60px;
   }
 
   .hero-side {
     display: block;
-    /* full height of the hero row */
+    /* stretch to fill full row height + let image overflow top */
     align-self: stretch;
+    overflow: visible;
+    min-height: 600px;
   }
 
   .hero-avatar-img {
     height: 100%;
-    min-height: 520px;
+    min-height: 600px;
+    overflow: visible;
     /* left-edge fade only */
     -webkit-mask-image: linear-gradient(to right, transparent 0%, black 14%, black 100%);
     mask-image: linear-gradient(to right, transparent 0%, black 14%, black 100%);

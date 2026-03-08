@@ -1,3 +1,6 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 
 type AvatarProps = {
@@ -8,7 +11,24 @@ type AvatarProps = {
 }
 
 export default function Avatar({ src, alt = 'User', size = 48, fallbackText = 'U' }: AvatarProps) {
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
   const s = `${size}px`
+
+  useEffect(() => {
+    // Initial theme check
+    const saved = localStorage.getItem('safepath_theme')
+    if (saved === 'light') setTheme('light')
+
+    const handleThemeChange = (e: any) => {
+      setTheme(e.detail)
+    }
+
+    window.addEventListener('themeChanged', handleThemeChange)
+    return () => window.removeEventListener('themeChanged', handleThemeChange)
+  }, [])
+
+  const defaultAvatar = theme === 'light' ? '/Hero-Avatar-cute.png' : '/Hero-avatar.png'
+  const displaySrc = src || defaultAvatar
 
   return (
     <div
@@ -17,19 +37,18 @@ export default function Avatar({ src, alt = 'User', size = 48, fallbackText = 'U
         width: s,
         height: s,
         borderColor: 'var(--wine-light)',
-        background: 'linear-gradient(135deg, var(--tone-soft), color-mix(in srgb, var(--wine-light) 35%, var(--bg-card)))',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
-      {src ? (
-        <Image src={src} alt={alt} width={size} height={size} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      ) : (
-        <span style={{ fontWeight: 800, fontSize: Math.max(12, Math.floor(size * 0.34)), color: 'var(--wine)' }}>
-          {fallbackText}
-        </span>
-      )}
+      <Image 
+        src={displaySrc} 
+        alt={alt} 
+        width={size} 
+        height={size} 
+        style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'top' }} 
+      />
     </div>
   )
 }

@@ -1,13 +1,26 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import SCENARIOS from '@/lib/scenarios'
 import { applyChoiceScoring } from '@/lib/scoring'
-import { modeToSlug } from '@/lib/mode'
+import StarBorder from '@/app/components/StarBorder'
+import DecryptedText from '@/app/components/DecryptedText'
+import RedFlagScanner from '@/app/components/RedFlagScanner'
+import WhackAMoleRisk from '@/app/components/WhackAMoleRisk'
+import MatchTheFollowing from '@/app/components/MatchTheFollowing'
+import AvatarPath from '@/app/components/AvatarPath'
+import ScenarioChat from '@/app/components/ScenarioChat'
+import SafetyGridEngine from '@/app/components/SafetyGridEngine'
+import confetti from 'canvas-confetti'
 
-type Phase = 'warning' | 'playing' | 'coaching' | 'end'
+interface ScenarioCoreProps {
+  scenarioId: string
+  routeVariant?: 'legacy' | 'mode'
+}
+
+type Phase = 'playing' | 'coaching' | 'end'
 
 interface CoachFeedback {
   feedback: string
@@ -17,34 +30,39 @@ interface CoachFeedback {
   coachMood: string
 }
 
-type ScenarioCoreProps = {
-  scenarioId: string
-  routeVariant?: 'legacy' | 'mode'
-}
+export default function ScenarioCore({ scenarioId, routeVariant: _routeVariant = 'legacy' }: ScenarioCoreProps) {
+  const scenario = SCENARIOS[scenarioId]
 
-export default function ScenarioCore({ scenarioId, routeVariant = 'legacy' }: ScenarioCoreProps) {
-  const router   = useRouter()
-  const searchParams = useSearchParams()
-  const id = scenarioId
-  const scenario = SCENARIOS[id]
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
-
-  const [phase, setPhase]               = useState<Phase>('warning')
+  const [phase, setPhase] = useState<Phase>('playing')
   const [currentNodeId, setCurrentNodeId] = useState(scenario?.startNodeId || '')
-  const [riskLevel, setRiskLevel]       = useState(40)
-  const [confidence, setConfidence]     = useState(50)
-  const [eqScore, setEqScore]           = useState(50)
-  const [choiceHistory, setChoiceHistory] = useState<string[]>([])
+  const [riskLevel, setRiskLevel] = useState(40)
+  const [confidence, setConfidence] = useState(50)
+  const [eqScore, setEqScore] = useState(50)
+  const [history, setHistory] = useState<string[]>([scenario?.startNodeId || ''])
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null)
-  const [coaching, setCoaching]         = useState<CoachFeedback | null>(null)
+  const [coaching, setCoaching] = useState<CoachFeedback | null>(null)
   const [loadingCoach, setLoadingCoach] = useState(false)
-  const [showHint, setShowHint]         = useState(false)
-  const [elapsed, setElapsed]           = useState(0)
-  const [runId, setRunId]               = useState<string | null>(null)
-  const [runCompleteSent, setRunCompleteSent] = useState(false)
-  const [resumeLoading, setResumeLoading] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
+  const [_runId, setRunId] = useState<string | null>(null) // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [timeLeft, setTimeLeft] = useState(15)
+  const [isCritical, setIsCritical] = useState(false)
+  const [missedNodes, setMissedNodes] = useState<Array<{ nodeId: string; description: string; choices: typeof scenario.nodes[string]['choices'] }>>([])
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const resumeInitRef = useRef(false)
+  const hasStartedRef = useRef(false)
+  // Prevents handleTimeOut firing more than once per node
+  const hasTimedOutRef = useRef(false)
+  // Keep a live ref to currentNodeId so the timer closure always reads the latest value
+  const currentNodeIdRef = useRef(currentNodeId)
+  useEffect(() => { currentNodeIdRef.current = currentNodeId }, [currentNodeId])
+
+  useEffect(() => {
+    if (phase === 'playing' && !hasStartedRef.current) {
+      hasStartedRef.current = true
+      startScenarioRun()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
 
   useEffect(() => {
     if (phase === 'playing') {
@@ -54,95 +72,101 @@ export default function ScenarioCore({ scenarioId, routeVariant = 'legacy' }: Sc
   }, [phase])
 
   useEffect(() => {
-    const readTheme = () => {
-      const t = document.documentElement.getAttribute('data-theme')
-      setTheme(t === 'dark' ? 'dark' : 'light')
+    // Reset the per-node timeout guard whenever the node changes
+    hasTimedOutRef.current = false
+    const isRetry = missedNodes.some(m => m.nodeId === currentNodeId)
+    if (isRetry) {
+      setIsCritical(true)
+      setTimeLeft(30)
+    } else if (phase === 'playing' && (scenario?.intensity === 'high' || scenario?.mode === 'Simulation')) {
+      setIsCritical(true)
+      setTimeLeft(15)
+    } else {
+      setIsCritical(false)
     }
-    readTheme()
-    const observer = new MutationObserver(readTheme)
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-    return () => observer.disconnect()
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentNodeId, phase, scenario?.mode, scenario?.intensity])
 
   useEffect(() => {
-    if (!scenario || resumeInitRef.current) return
-    const requestedRunId = searchParams.get('runId')
-    if (!requestedRunId) return
-
-    resumeInitRef.current = true
-    setResumeLoading(true)
-
-    fetch(`/api/scenario-runs/resume?runId=${encodeURIComponent(requestedRunId)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data?.resumeAvailable) return
-        if (String(data.scenarioId) !== scenario.id) return
-
-        setRunId(String(data.runId))
-        setCurrentNodeId(String(data.currentNodeId))
-        setRiskLevel(Number(data.riskLevel) || 40)
-        setConfidence(Number(data.confidence) || 50)
-        setEqScore(Number(data.eqScore) || 50)
-        setChoiceHistory(Array.isArray(data.choiceHistory) ? data.choiceHistory.map(String) : [])
-        setElapsed(Number(data.elapsedSeconds) || 0)
-        setRunCompleteSent(false)
-        setPhase(data.isEnd ? 'end' : 'playing')
+    if (!isCritical || phase !== 'playing') return
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          // Guard: only fire once per node, even if the interval ticks an extra time
+          if (!hasTimedOutRef.current) {
+            hasTimedOutRef.current = true
+            handleTimeOut()
+          }
+          return 0
+        }
+        return prev - 1
       })
-      .catch(() => {})
-      .finally(() => setResumeLoading(false))
-  }, [scenario, searchParams])
+    }, 1000)
+    return () => clearInterval(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCritical, phase, currentNodeId])
 
-  if (!scenario) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
-        <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--text)' }}>Scenario not found</h2>
-        <Link href="/dashboard" className="btn-primary" style={{ marginTop: 24, display: 'inline-flex' }}>Back to Dashboard</Link>
-      </div>
-    </div>
-  )
+  const handleTimeOut = () => {
+    if (!scenario) return
+    // Use the ref to get the actual current node ID — avoids stale closure
+    const nodeId = currentNodeIdRef.current
+    const currentNode = scenario.nodes[nodeId]
+    if (!currentNode) return
 
-  if (resumeLoading) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
-      <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>Resuming session...</div>
-    </div>
-  )
+    // Check if this is a retry (already in missedNodes) — use functional update to read latest state
+    setMissedNodes(prev => {
+      const isAlreadyRetry = prev.some(m => m.nodeId === nodeId)
+      if (isAlreadyRetry) return prev // don't add again
+      return [...prev, {
+        nodeId,
+        description: currentNode.description,
+        choices: currentNode.choices,
+      }]
+    })
 
-  const currentNode = scenario.nodes[currentNodeId]
-  const mins = String(Math.floor(elapsed / 60)).padStart(2, '0')
-  const secs = String(elapsed % 60).padStart(2, '0')
-  const scenarioOrder = Object.keys(SCENARIOS)
-  const currentIndex = scenarioOrder.indexOf(scenario.id)
-  const nextScenarioId =
-    currentIndex >= 0 && currentIndex < scenarioOrder.length - 1
-      ? scenarioOrder[currentIndex + 1]
-      : null
+    // Apply timeout penalty — risk up, confidence down, EQ slightly down (panic/freeze response)
+    setRiskLevel((prev) => Math.min(100, prev + 15))
+    setConfidence((prev) => Math.max(0, prev - 10))
+    setEqScore((prev) => Math.max(0, prev - 8))
 
-  function getScenarioHref(targetScenarioId: string) {
-    if (routeVariant === 'mode') {
-      const targetScenario = SCENARIOS[targetScenarioId]
-      if (targetScenario) return `/mode/${modeToSlug(targetScenario.mode)}/${targetScenarioId}`
+    // Check retry state to decide navigation
+    // We re-read missedNodes via the functional updater approach above,
+    // but for navigation we need to know synchronously — use the ref snapshot
+    const isAlreadyRetry = missedNodes.some(m => m.nodeId === nodeId)
+    if (isAlreadyRetry) {
+      setPhase('end')
+      return
     }
-    return `/scenario/${targetScenarioId}`
+
+    // Auto-advance: pick the last (riskiest) choice, or first if only one exists
+    const timeoutChoice = currentNode.choices[currentNode.choices.length - 1] || currentNode.choices[0]
+    if (!timeoutChoice) return
+
+    const nextId = timeoutChoice.nextNodeId
+    if (nextId && scenario.nodes[nextId]) {
+      // Use functional update to avoid stale history
+      setHistory(h => {
+        if (h[h.length - 1] === nextId) return h // already there, don't duplicate
+        return [...h, nextId]
+      })
+      setCurrentNodeId(nextId)
+      if (scenario.nodes[nextId].isEnd) setPhase('end')
+    } else {
+      setPhase('end')
+    }
   }
 
-  function resetScenarioSession() {
-    setPhase('warning')
-    setCurrentNodeId(scenario.startNodeId)
-    setRiskLevel(40)
-    setConfidence(50)
-    setEqScore(50)
-    setChoiceHistory([])
-    setSelectedChoice(null)
-    setCoaching(null)
-    setLoadingCoach(false)
-    setShowHint(false)
-    setElapsed(0)
-    setRunId(null)
-    setRunCompleteSent(false)
+  const triggerConfetti = () => {
+    confetti({
+      particleCount: 120,
+      spread: 80,
+      origin: { y: 0.6 },
+      colors: ['#ff7faa', '#ffc4dd', '#89f7ff', '#00ffa3', '#ffc06b']
+    })
   }
 
-  async function startScenarioRun() {
+  const startScenarioRun = async () => {
     try {
       const res = await fetch('/api/scenario-runs/start', {
         method: 'POST',
@@ -154,95 +178,29 @@ export default function ScenarioCore({ scenarioId, routeVariant = 'legacy' }: Sc
           initialEq: eqScore,
         }),
       })
-      if (!res.ok) return
       const data = await res.json()
       if (data?.runId) setRunId(String(data.runId))
-    } catch {}
+    } catch {
+      // silently ignore
+    }
   }
 
-  async function trackChoiceEvent(params: {
-    choiceId: string
-    choiceText: string
-    riskImpact: number
-    eqImpact: number
-    riskBefore: number
-    riskAfter: number
-    confidenceBefore: number
-    confidenceAfter: number
-    eqBefore: number
-    eqAfter: number
-  }) {
-    if (!runId) return
-    try {
-      await fetch('/api/scenario-runs/event', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          runId,
-          nodeId: currentNodeId,
-          ...params,
-        }),
-      })
-    } catch {}
-  }
-
-  async function completeScenarioRun(outcome?: string) {
-    if (!runId || runCompleteSent) return
-    setRunCompleteSent(true)
-    try {
-      await fetch('/api/scenario-runs/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          runId,
-          finalRisk: riskLevel,
-          finalConfidence: confidence,
-          finalEq: eqScore,
-          outcome,
-        }),
-      })
-    } catch {}
-  }
-
-  async function handleChoice(choiceId: string) {
-    if (selectedChoice) return
+  const handleChoice = async (choiceId: string) => {
+    if (selectedChoice || !scenario) return
+    const currentNode = scenario.nodes[currentNodeId]
     const choice = currentNode.choices.find(c => c.id === choiceId)
     if (!choice) return
 
     setSelectedChoice(choiceId)
     setPhase('coaching')
     setLoadingCoach(true)
-    setShowHint(false)
 
-    // Update meters optimistically
-    const riskBefore = riskLevel
-    const confidenceBefore = confidence
-    const eqBefore = eqScore
-    const next = applyChoiceScoring(
-      { risk: riskLevel, confidence, eq: eqScore },
-      choice
-    )
-    const riskAfter = next.risk
-    const confidenceAfter = next.confidence
-    const eqAfter = next.eq
+    const next = applyChoiceScoring({ risk: riskLevel, confidence, eq: eqScore }, choice)
+    if (choice.riskImpact < 0) triggerConfetti()
 
-    setRiskLevel(riskAfter)
-    setConfidence(confidenceAfter)
-    setEqScore(eqAfter)
-    setChoiceHistory(h => [...h, choice.text])
-
-    void trackChoiceEvent({
-      choiceId,
-      choiceText: choice.text,
-      riskImpact: choice.riskImpact,
-      eqImpact: choice.eqImpact,
-      riskBefore,
-      riskAfter,
-      confidenceBefore,
-      confidenceAfter,
-      eqBefore,
-      eqAfter,
-    })
+    setRiskLevel(next.risk)
+    setConfidence(next.confidence)
+    setEqScore(next.eq)
 
     try {
       const res = await fetch('/api/coach/feedback', {
@@ -253,15 +211,14 @@ export default function ScenarioCore({ scenarioId, routeVariant = 'legacy' }: Sc
           nodeId: currentNodeId,
           choiceId,
           choiceText: choice.text,
-          playerHistory: choiceHistory,
-          riskLevel,
+          riskLevel: next.risk,
         }),
       })
       const data = await res.json()
       setCoaching(data)
     } catch {
       setCoaching({
-        feedback: "Your instincts are developing. Every decision in a real scenario is valid data — there are no perfect answers, only more and less prepared ones.",
+        feedback: "Your instincts are developing. This decision shows growing situational awareness.",
         hint: choice.aiCoachNote,
         riskDelta: choice.riskImpact,
         eqDelta: choice.eqImpact,
@@ -272,393 +229,788 @@ export default function ScenarioCore({ scenarioId, routeVariant = 'legacy' }: Sc
     }
   }
 
-  function continueScenario() {
+  const continueScenario = () => {
+    const currentNode = scenario.nodes[currentNodeId]
     const choice = currentNode.choices.find(c => c.id === selectedChoice)
     if (!choice) return
+
+    const wasRetryingMissed = missedNodes.some(m => m.nodeId === currentNodeId)
+
     setSelectedChoice(null)
     setCoaching(null)
+
+    if (wasRetryingMissed) {
+      // Remove this node from missed list — player has now answered it
+      setMissedNodes(prev => prev.filter(m => m.nodeId !== currentNodeId))
+      // Apply the choice scoring benefit (optimistic — reward the attempt)
+      setPhase('end')
+      return
+    }
 
     if (choice.nextNodeId && scenario.nodes[choice.nextNodeId]) {
       const nextNode = scenario.nodes[choice.nextNodeId]
       setCurrentNodeId(choice.nextNodeId)
-      if (nextNode.isEnd) {
-        void completeScenarioRun(nextNode.endType || 'partial')
-        setPhase('end')
-      } else {
-        setPhase('playing')
-      }
+      setHistory(h => [...h, choice.nextNodeId!])
+      if (nextNode.isEnd) setPhase('end')
+      else setPhase('playing')
     } else {
-      void completeScenarioRun('partial')
       setPhase('end')
     }
   }
 
-  const moodColors: Record<string, string> = {
-    tense: '#7b1d3a', escalated: '#b91c1c', relieved: '#15803d', neutral: '#3b82f6', resolved: '#7c3aed',
-  }
-  const moodLabels: Record<string, string> = {
-    tense: '⚠️ Tense', escalated: '🚨 Escalating', relieved: '✅ De-escalated', neutral: '😐 Neutral', resolved: '🎯 Resolved',
-  }
-  const endMessages: Record<string, { title: string; subtitle: string; emoji: string }> = {
-    safe: { title: 'Excellent work.', subtitle: 'You navigated this scenario safely. Your choices reflect strong situational awareness.', emoji: '🛡️' },
-    partial: { title: 'Good instincts.', subtitle: 'You kept yourself safe. There may be additional strategies to explore — try replaying.', emoji: '💪' },
-    learning: { title: 'Important lesson.', subtitle: "This outcome shows a common vulnerability. Don't worry — recognising patterns is the first step.", emoji: '📚' },
-  }
+  const currentNode = scenario?.nodes[currentNodeId]
 
-  // ── Warning Screen ──────────────────────────────────────────────────────
-  if (phase === 'warning') return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-      <div style={{ maxWidth: 520, width: '100%' }}>
-        <div className="card" style={{ padding: '40px 36px' }}>
-          <div style={{ fontSize: 40, marginBottom: 20, textAlign: 'center' }}>{scenario.icon}</div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 26, color: 'var(--text)', textAlign: 'center', marginBottom: 8 }}>{scenario.title}</h1>
-          <div style={{ textAlign: 'center', marginBottom: 28 }}>
-            <span style={{ fontSize: 11, color: scenario.color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', background: `${scenario.color}15`, padding: '3px 10px', borderRadius: 100 }}>{scenario.mode} · {scenario.category}</span>
+  const memoizedInteractionData = useMemo(() => currentNode?.interactionData || {}, [currentNode?.interactionData])
+  const memoizedTargets = useMemo(() => memoizedInteractionData.targets || [], [memoizedInteractionData.targets])
+  const memoizedPairs = useMemo(() =>
+    (memoizedInteractionData.pairs || []).map((p: { key: string; value: string }, idx: number) => ({
+      id: `pair-${idx}`,
+      left: p.key,
+      right: p.value,
+    })),
+  [memoizedInteractionData.pairs])
+  const themeColor = useMemo(() => scenario?.color || '#ff6f91', [scenario?.color])
+
+  const handleInteractionComplete = useCallback((_score?: unknown) => {
+    if (currentNode?.choices && currentNode.choices[0]) {
+      handleChoice(currentNode.choices[0].id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentNode?.choices])
+
+  const renderInteraction = () => {
+    if (!currentNode || !scenario) return null
+
+    // When time pressure is active, always use fast MCQ buttons —
+    // chat / scanner widgets are incompatible with countdown urgency
+    const rawType = currentNode.interactionType || (currentNode.choices ? 'mcq' : null)
+    const type = isCritical && rawType === 'chat' ? 'mcq' : rawType
+
+    switch (type) {
+      case 'red-flag':
+        return (
+          <RedFlagScanner
+            text={memoizedInteractionData.text || currentNode.description}
+            targets={memoizedTargets}
+            onComplete={handleInteractionComplete}
+            color={themeColor}
+          />
+        )
+      case 'match':
+        return (
+          <MatchTheFollowing
+            pairs={memoizedPairs}
+            onComplete={handleInteractionComplete}
+            color={themeColor}
+          />
+        )
+      case 'whack-a-mole':
+        return (
+          <WhackAMoleRisk
+            onComplete={handleInteractionComplete}
+            color={themeColor}
+            totalToFind={5}
+          />
+        )
+      case 'strategy-grid':
+        return (
+          <SafetyGridEngine
+            availableBlocks={memoizedTargets.map((t: string) => ({
+              type: 'safety',
+              label: t.charAt(0).toUpperCase() + t.slice(1),
+              icon: t === 'security' ? '👮' : t === 'lights' ? '💡' : t === 'crowd' ? '👥' : '🛡️',
+              count: 3
+            }))}
+            onComplete={handleInteractionComplete}
+            color={themeColor}
+          />
+        )
+      case 'chat':
+        return (
+          <ScenarioChat
+            npcInitialMessage={memoizedInteractionData.npcInitial || "Hey, can we talk for a moment?"}
+            keywords={memoizedInteractionData.keywords || ['no', 'boundary', 'stop']}
+            onComplete={handleInteractionComplete}
+            color={themeColor}
+          />
+        )
+      case 'avatar-path':
+        return (
+          <AvatarPath
+            safeOption={memoizedInteractionData.safeOption || "Public Area"}
+            riskyOption={memoizedInteractionData.riskyOption || "Shortcut"}
+            onComplete={(isSafe: boolean) => {
+              const choiceType = isSafe ? 'safe' : 'risky'
+              const c = currentNode.choices.find(ch => ch.id.toLowerCase().includes(choiceType)) || currentNode.choices[0]
+              handleChoice(c.id)
+            }}
+            color={themeColor}
+          />
+        )
+      case 'mcq':
+      default:
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {currentNode.choices.map((choice, i) => (
+              <motion.button
+                key={choice.id}
+                whileHover={{ scale: 1.02, x: 6 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleChoice(choice.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 16,
+                  padding: '16px 20px',
+                  background: 'rgba(9, 18, 36, 0.7)',
+                  border: '1px solid rgba(255, 176, 214, 0.22)',
+                  borderRadius: 14,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s ease',
+                  borderLeft: '3px solid var(--accent)',
+                }}
+                className="scenario-choice-btn"
+              >
+                <div style={{
+                  flexShrink: 0,
+                  width: 40,
+                  height: 40,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 10,
+                  background: 'rgba(255, 127, 170, 0.15)',
+                  border: '1px solid rgba(255, 127, 170, 0.4)',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: 'var(--accent)',
+                  fontFamily: 'var(--font-orbitron)',
+                }}>
+                  {String.fromCharCode(65 + i)}
+                </div>
+                <span style={{
+                  fontSize: 15,
+                  color: 'var(--text)',
+                  fontFamily: 'var(--font-heading)',
+                  lineHeight: 1.4,
+                }}>
+                  {choice.text}
+                </span>
+              </motion.button>
+            ))}
           </div>
+        )
+    }
+  }
 
-          {scenario.triggerWarnings.length > 0 && (
-            <div style={{ padding: '16px', borderRadius: 10, background: 'rgba(246,173,85,0.07)', border: '1px solid rgba(246,173,85,0.25)', marginBottom: 24 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>⚠️ Content Notice</div>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>This scenario contains references to:</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {scenario.triggerWarnings.map((w, i) => (
-                  <span key={i} style={{ fontSize: 12, padding: '3px 10px', borderRadius: 100, background: 'rgba(246,173,85,0.12)', color: '#92400e', fontWeight: 600 }}>{w}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 28, padding: '0 4px' }}>
-            <strong style={{ color: 'var(--text)' }}>Context:</strong> {scenario.context}
-          </div>
-
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <Link href="/dashboard" className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>← Back</Link>
-            <button
-              onClick={() => {
-                setPhase('playing')
-                void startScenarioRun()
-              }}
-              className="btn-primary"
-              style={{ flex: 2, justifyContent: 'center', padding: '13px' }}
-            >
-              I am Ready — Begin →
-            </button>
-          </div>
-
-          <p style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: 'var(--text-muted)' }}>
-            Emergency exit available on every screen
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-
-  // ── End Screen ──────────────────────────────────────────────────────────
-  if (phase === 'end' && currentNode?.isEnd) {
-    const endData = endMessages[currentNode.endType || 'partial']
-    const improvement = Math.round((confidence - 50 + eqScore - 50) / 2)
+  if (!scenario) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-        <div style={{ maxWidth: 540, width: '100%' }}>
-          <div className="card" style={{ padding: '48px 40px', textAlign: 'center' }}>
-            <div style={{
-              width: 80, height: 80, borderRadius: '50%', margin: '0 auto 24px',
-              background: 'var(--grad-hero)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 36, boxShadow: '0 8px 32px rgba(123,29,58,0.3)',
-            }}>{endData.emoji}</div>
-
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 900, color: 'var(--text)', marginBottom: 10 }}>{endData.title}</h1>
-            <p style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 32 }}>{endData.subtitle}</p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 36 }}>
-              {[
-                { label: 'Choices Made', value: choiceHistory.length, unit: '' },
-                { label: 'Confidence', value: confidence, unit: '%' },
-                { label: 'EQ Score', value: eqScore, unit: '%' },
-              ].map((m, i) => (
-                <div key={i} style={{ padding: '16px 12px', borderRadius: 10, background: 'rgba(123,29,58,0.04)', border: '1px solid var(--border)' }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, color: 'var(--wine)' }}>{m.value}{m.unit}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{m.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {improvement > 0 && (
-              <div style={{ padding: '16px', borderRadius: 12, background: 'rgba(123,29,58,0.05)', border: '1.5px solid var(--border)', marginBottom: 28 }}>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 800, color: 'var(--wine)' }}>
-                  +{improvement}% growth this session 🎉
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button className="btn-ghost" style={{ flex: 1, justifyContent: 'center', fontSize: 13 }} onClick={() => resetScenarioSession()}>
-                Replay
-              </button>
-              {nextScenarioId && (
-                <button
-                  className="btn-ghost"
-                  style={{ flex: 1, justifyContent: 'center', fontSize: 13 }}
-                  onClick={() => router.push(getScenarioHref(nextScenarioId))}
-                >
-                  Next Scenario
-                </button>
-              )}
-              <Link href="/dashboard" className="btn-primary" style={{ flex: 2, justifyContent: 'center' }}>
-                Dashboard →
-              </Link>
-            </div>
-          </div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
+          <p>Scenario not found</p>
+          <Link href="/dashboard" style={{ color: 'var(--accent)', marginTop: 12, display: 'inline-block' }}>Back to Dashboard</Link>
         </div>
       </div>
     )
   }
 
-  // ── Main Game UI ─────────────────────────────────────────────────────────
-  const isDark = theme === 'dark'
-  const gameplayBackground = isDark
-    ? scenario.backgroundMood
-    : 'linear-gradient(135deg, #fff7fa 0%, #ffeef7 55%, #fffaff 100%)'
-  const hudBg = isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.82)'
-  const hudBorder = isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid var(--border)'
-  const hudText = isDark ? '#fff' : 'var(--text)'
-  const hudMuted = isDark ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)'
-  const cardBg = isDark
-    ? 'linear-gradient(160deg, rgba(20,12,24,0.74), rgba(20,12,24,0.56))'
-    : 'linear-gradient(160deg, rgba(255,255,255,0.94), rgba(255,237,247,0.9))'
-  const cardText = isDark ? '#f0e8ec' : 'var(--text)'
-  const coachingBg = isDark ? 'rgba(15,8,16,0.9)' : 'rgba(255,255,255,0.95)'
-  const coachingText = isDark ? '#e8d5dc' : 'var(--text)'
+  // ── MISSED-NODE REPLAY HANDLER ──────────────────────────────────────
+  const replayMissedNode = (nodeId: string) => {
+    setCurrentNodeId(nodeId)
+    setSelectedChoice(null)
+    setCoaching(null)
+    setPhase('playing')
+    setTimeLeft(30) // extra 30s for retry
+    setIsCritical(true)
+  }
 
-  return (
-    <div style={{ minHeight: '100vh', background: gameplayBackground, position: 'relative', overflow: 'hidden' }}>
+  // ── END SCREEN ────────────────────────────────────────────────────────
+  if (phase === 'end') {
+    const endNode = scenario.nodes[currentNodeId]
+    const endType = endNode?.endType || 'partial'
+    const hasMissed = missedNodes.length > 0
+    // If any nodes were missed, cap the result at 'partial' max
+    const effectiveEndType = hasMissed && endType === 'safe' ? 'partial' : endType
+    const endEmoji = effectiveEndType === 'safe' ? '🏆' : effectiveEndType === 'partial' ? '✅' : '📚'
+    const endLabel = effectiveEndType === 'safe' ? 'MISSION CLEARED' : effectiveEndType === 'partial' ? 'MISSION COMPLETE' : 'LESSON LEARNED'
+    const endColor = effectiveEndType === 'safe' ? '#89f7ff' : effectiveEndType === 'partial' ? '#ffc4dd' : '#ffc06b'
 
-      {/* Atmospheric background */}
-      <div style={{ position: 'fixed', inset: 0, background: gameplayBackground, opacity: isDark ? 0.85 : 0.75, zIndex: 0 }} />
-      <div style={{ position: 'fixed', top: '15%', left: '12%', width: 320, height: 320, borderRadius: '50%', background: `radial-gradient(circle, ${scenario.color}${isDark ? '44' : '2b'} 0%, transparent 70%)`, pointerEvents: 'none', zIndex: 1, filter: 'blur(10px)' }} />
-      <div style={{ position: 'fixed', bottom: '8%', right: '10%', width: 280, height: 280, borderRadius: '50%', background: isDark ? 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 72%)' : 'radial-gradient(circle, rgba(255, 111, 145, 0.1) 0%, transparent 72%)', pointerEvents: 'none', zIndex: 1, filter: 'blur(8px)' }} />
-
-      {/* Emergency Exit */}
-      <Link href="/safe-exit" style={{
-        position: 'fixed', top: 16, right: 16, zIndex: 100,
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '8px 14px', borderRadius: 8,
-        background: isDark ? 'rgba(185,28,28,0.9)' : 'rgba(185,28,28,0.82)', color: '#fff',
-        fontSize: 12, fontWeight: 700, textDecoration: 'none',
-        backdropFilter: 'blur(8px)',
-        boxShadow: isDark ? '0 4px 16px rgba(0,0,0,0.4)' : '0 4px 16px rgba(185,28,28,0.22)',
-      }}>🚪 Exit Safely</Link>
-
-      {/* HUD */}
-      <div style={{
-        position: 'fixed', top: 16, left: 16, right: 80, zIndex: 50,
-        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-      }}>
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8 }}>
-          <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
-            <path d="M14 2L4 7v8c0 5.5 4.3 10.7 10 12 5.7-1.3 10-6.5 10-12V7L14 2z" stroke={isDark ? '#fff' : '#2b1430'} strokeWidth="2" fill={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)'} />
-          </svg>
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, color: hudText, opacity: 0.9 }}>SafePath</span>
-        </div>
-
-        {/* Risk Meter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: hudBg, backdropFilter: 'blur(8px)', borderRadius: 8, padding: '6px 12px', border: hudBorder }}>
-          <span style={{ fontSize: 10, color: hudMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>RISK</span>
-          <div style={{ width: 80, height: 5, background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(141,103,148,0.25)', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: `${riskLevel}%`,
-              background: riskLevel > 70 ? '#ef4444' : riskLevel > 40 ? '#f59e0b' : '#22c55e',
-              borderRadius: 3,
-              transition: 'all 0.5s ease',
-            }} />
-          </div>
-          <span style={{ fontSize: 11, color: hudText, fontWeight: 700 }}>{riskLevel}%</span>
-        </div>
-
-        {/* Confidence */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: hudBg, backdropFilter: 'blur(8px)', borderRadius: 8, padding: '6px 12px', border: hudBorder }}>
-          <span style={{ fontSize: 10, color: hudMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>CONF</span>
-          <div style={{ width: 60, height: 5, background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(141,103,148,0.25)', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${confidence}%`, background: 'var(--pink)', borderRadius: 3, transition: 'all 0.5s ease' }} />
-          </div>
-          <span style={{ fontSize: 11, color: hudText, fontWeight: 700 }}>{confidence}%</span>
-        </div>
-
-        {/* Mood */}
-        <div style={{ background: hudBg, backdropFilter: 'blur(8px)', borderRadius: 8, padding: '6px 12px', border: `1px solid ${moodColors[currentNode?.mood || 'neutral']}55`, fontSize: 11, color: hudText }}>
-          {moodLabels[currentNode?.mood || 'neutral']}
-        </div>
-
-        {/* Timer */}
-        <div style={{ background: hudBg, backdropFilter: 'blur(8px)', borderRadius: 8, padding: '6px 12px', border: hudBorder, fontSize: 11, color: hudMuted, fontFamily: 'monospace' }}>
-          {mins}:{secs}
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div style={{ position: 'relative', zIndex: 10, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 2rem 2rem' }}>
-        <div style={{ width: '100%', maxWidth: 680 }}>
-
-          {/* Scenario card */}
-          <div style={{
-            background: cardBg,
+    return (
+      <div className="game-page" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+        <div className="space-bg" aria-hidden="true" />
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            maxWidth: 720,
+            width: '100%',
+            background: 'rgba(9, 18, 36, 0.88)',
+            border: '1px solid rgba(255, 176, 214, 0.3)',
+            borderRadius: 24,
+            padding: '48px 40px',
+            textAlign: 'center',
             backdropFilter: 'blur(20px)',
-            borderRadius: 20,
-            border: `1px solid ${moodColors[currentNode?.mood || 'neutral']}44`,
-            padding: '32px 36px',
-            marginBottom: 20,
-            boxShadow: isDark
-              ? '0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)'
-              : '0 20px 60px rgba(123,29,58,0.14), 0 0 0 1px rgba(255,255,255,0.4)',
+            position: 'relative',
+            zIndex: 2,
+          }}
+        >
+          {/* End badge */}
+          <div style={{ fontSize: 56, marginBottom: 8 }}>{endEmoji}</div>
+          <h1 style={{
+            fontFamily: 'var(--font-orbitron)',
+            fontSize: 'clamp(1.6rem, 5vw, 2.6rem)',
+            color: endColor,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            marginBottom: 8,
+            textShadow: `0 0 24px ${endColor}66`,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, opacity: 0.7 }}>
-              <span style={{ fontSize: 16 }}>{scenario.icon}</span>
-              <span style={{ fontSize: 11, color: isDark ? 'rgba(255,255,255,0.5)' : 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{scenario.title}</span>
-            </div>
+            {endLabel}
+          </h1>
+          <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 32 }}>
+            {scenario.title} · {scenario.category}
+          </p>
 
-            <p style={{ fontSize: 16, color: cardText, lineHeight: 1.8, fontStyle: 'italic' }}>
-              {currentNode?.description}
+          {/* Stats row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 32 }}>
+            {[
+              { label: 'RISK', value: riskLevel, color: '#ff6f91', warn: riskLevel > 60 },
+              { label: 'CONFIDENCE', value: confidence, color: '#89f7ff', warn: false },
+              { label: 'EQ', value: eqScore, color: '#ffc4dd', warn: false },
+            ].map(m => (
+              <div key={m.label} style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: `1px solid ${m.color}44`,
+                borderRadius: 14,
+                padding: '16px 12px',
+              }}>
+                <div style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--muted)', fontFamily: 'var(--font-orbitron)', marginBottom: 6 }}>{m.label}</div>
+                <div style={{ fontSize: 32, fontFamily: 'var(--font-mono)', color: m.color, fontWeight: 700 }}>{m.value}%</div>
+                <div style={{ marginTop: 6, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.08)' }}>
+                  <div style={{ height: '100%', width: `${m.value}%`, borderRadius: 999, background: m.color, transition: 'width 1s ease' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Butterfly effect tree */}
+          <div style={{
+            background: 'rgba(255, 127, 170, 0.06)',
+            border: '1px dashed rgba(255, 176, 214, 0.3)',
+            borderRadius: 16,
+            padding: '20px 16px',
+            marginBottom: 32,
+          }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--muted)', fontFamily: 'var(--font-orbitron)', marginBottom: 14 }}>
+              ⟡ BUTTERFLY EFFECT TREE
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 0 }}>
+              {history.map((id, i) => {
+                const wasMissed = missedNodes.some(m => m.nodeId === id)
+                const isLast = i === history.length - 1
+                const dotColor = wasMissed ? '#ffc06b' : isLast ? endColor : 'rgba(255, 127, 170, 0.2)'
+                const borderColor = wasMissed ? '#ffc06b' : isLast ? endColor : 'rgba(255,176,214,0.4)'
+                const textColor = wasMissed ? '#ffc06b' : isLast ? '#000' : 'var(--accent)'
+                return (
+                  <div key={`${id}-${i}`} style={{ display: 'flex', alignItems: 'center' }}>
+                    <div
+                      title={wasMissed ? 'Timed out' : undefined}
+                      style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      background: dotColor,
+                      border: `2px solid ${borderColor}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: wasMissed ? 14 : 12,
+                      fontFamily: 'var(--font-mono)',
+                      color: textColor,
+                      fontWeight: 700,
+                      boxShadow: isLast ? `0 0 14px ${endColor}88` : wasMissed ? '0 0 10px rgba(255,192,107,0.4)' : 'none',
+                    }}>
+                      {wasMissed ? '⏱' : i + 1}
+                    </div>
+                    {i < history.length - 1 && (
+                      <div style={{ width: 28, height: 2, background: 'rgba(255,176,214,0.25)' }} />
+                    )}
+                  </div>
+                )
+              })}
+              {/* Greyed out "hidden paths" hint */}
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ width: 28, height: 2, background: 'rgba(255,255,255,0.08)' }} />
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '2px dashed rgba(255,255,255,0.12)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, color: 'rgba(255,255,255,0.2)',
+                }}>???</div>
+              </div>
+            </div>
+            <p style={{ marginTop: 12, fontSize: 11, color: 'var(--muted)' }}>
+              Replay to discover hidden paths ✦
             </p>
           </div>
 
-          {/* Choices */}
-          {phase === 'playing' && currentNode?.choices && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontSize: 11, color: isDark ? 'rgba(255,255,255,0.4)' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, marginBottom: 4 }}>What do you do?</div>
-              {currentNode.choices.map((choice, i) => (
-                <button key={choice.id} onClick={() => handleChoice(choice.id)} style={{
-                  padding: '16px 20px',
-                  background: isDark
-                    ? 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))'
-                    : 'linear-gradient(135deg, rgba(255,255,255,0.92), rgba(255,240,248,0.85))',
-                  border: isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid var(--border)',
-                  borderRadius: 12,
-                  color: cardText,
-                  fontSize: 14,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  lineHeight: 1.5,
-                  display: 'flex', alignItems: 'center', gap: 14,
-                }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = `rgba(${scenario.color === '#7b1d3a' ? '123,29,58' : '155,48,96'},0.25)`
-                    e.currentTarget.style.borderColor = `${scenario.color}88`
-                    e.currentTarget.style.transform = 'translateX(4px)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = isDark
-                      ? 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))'
-                      : 'linear-gradient(135deg, rgba(255,255,255,0.92), rgba(255,240,248,0.85))'
-                    e.currentTarget.style.borderColor = isDark ? 'rgba(255,255,255,0.12)' : 'var(--border)'
-                    e.currentTarget.style.transform = 'translateX(0)'
-                  }}
-                >
-                  <span style={{ fontSize: 11, color: isDark ? 'rgba(255,255,255,0.3)' : 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>{String.fromCharCode(65 + i)}</span>
-                  {choice.text}
-                </button>
-              ))}
+          {/* Coach note */}
+          {coaching?.feedback && (
+            <div style={{
+              background: 'rgba(255,196,221,0.07)',
+              border: '1px solid rgba(255,196,221,0.2)',
+              borderLeft: '3px solid var(--accent)',
+              borderRadius: 12,
+              padding: '14px 16px',
+              marginBottom: 28,
+              textAlign: 'left',
+            }}>
+              <div style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--accent)', fontFamily: 'var(--font-orbitron)', marginBottom: 6 }}>🤖 COACH NOTE</div>
+              <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5, fontStyle: 'italic' }}>{coaching.feedback}</p>
             </div>
           )}
 
-          {/* Coaching panel */}
-          {phase === 'coaching' && (
+          {/* ── MISSED QUESTIONS PANEL ────────────────────────────── */}
+          {hasMissed && (
             <div style={{
-              background: coachingBg,
-              backdropFilter: 'blur(20px)',
-              border: `1px solid ${scenario.color}55`,
-              borderRadius: 16,
-              padding: '28px',
-              boxShadow: isDark
-                ? `0 8px 32px rgba(0,0,0,0.4), 0 0 40px ${scenario.color}22`
-                : `0 8px 32px rgba(123,29,58,0.15), 0 0 30px ${scenario.color}26`,
+              background: 'rgba(255, 192, 107, 0.06)',
+              border: '1px solid rgba(255, 192, 107, 0.3)',
+              borderRadius: 18,
+              padding: '20px 18px',
+              marginBottom: 28,
+              textAlign: 'left',
             }}>
-              {/* Selected choice */}
-              <div style={{ padding: '10px 14px', borderRadius: 8, background: `${scenario.color}22`, border: `1px solid ${scenario.color}44`, marginBottom: 20, fontSize: 13, color: isDark ? 'rgba(255,255,255,0.75)' : 'var(--text)' }}>
-                <span style={{ fontSize: 11, color: isDark ? 'rgba(255,255,255,0.45)' : 'var(--text-muted)', fontWeight: 700, display: 'block', marginBottom: 4 }}>YOUR CHOICE</span>
-                {currentNode?.choices.find(c => c.id === selectedChoice)?.text}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 16,
+              }}>
+                <span style={{ fontSize: 18 }}>⏱</span>
+                <div>
+                  <div style={{ fontSize: 11, letterSpacing: '0.1em', color: '#ffc06b', fontFamily: 'var(--font-orbitron)', textTransform: 'uppercase' }}>
+                    Timed Out — {missedNodes.length} Question{missedNodes.length > 1 ? 's' : ''} Missed
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                    These questions were skipped due to the time limit. You can attempt each one now.
+                  </div>
+                </div>
               </div>
 
-              {/* AI Coach header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: 'var(--grad-hero)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 18, flexShrink: 0,
-                }}>🤖</div>
-                <div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: hudText }}>SafePath AI Coach</div>
-                  <div style={{ fontSize: 11, color: hudMuted }}>Trauma-informed · Non-judgmental</div>
-                </div>
-                {loadingCoach && (
-                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-                    {[0,1,2].map(i => (
-                      <div key={i} style={{
-                        width: 6, height: 6, borderRadius: '50%', background: scenario.color,
-                        animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
-                      }} />
-                    ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {missedNodes.map((missed, idx) => (
+                  <div key={`${missed.nodeId}-${idx}`} style={{
+                    background: 'rgba(9, 18, 36, 0.6)',
+                    border: '1px solid rgba(255, 192, 107, 0.2)',
+                    borderRadius: 12,
+                    padding: '14px 16px',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: '#ffc06b', fontFamily: 'var(--font-orbitron)', letterSpacing: '0.08em', marginBottom: 4 }}>
+                          MISSED · Q{idx + 1}
+                        </div>
+                        <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.4, marginBottom: 0 }}>
+                          {missed.description.length > 120
+                            ? missed.description.slice(0, 120) + '…'
+                            : missed.description}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => replayMissedNode(missed.nodeId)}
+                        style={{
+                          flexShrink: 0,
+                          padding: '7px 14px',
+                          background: 'rgba(255, 192, 107, 0.15)',
+                          border: '1px solid rgba(255, 192, 107, 0.5)',
+                          borderRadius: 8,
+                          color: '#ffc06b',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fontFamily: 'var(--font-orbitron)',
+                          letterSpacing: '0.06em',
+                          cursor: 'pointer',
+                          textTransform: 'uppercase',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={e => { (e.target as HTMLButtonElement).style.background = 'rgba(255,192,107,0.28)' }}
+                        onMouseLeave={e => { (e.target as HTMLButtonElement).style.background = 'rgba(255,192,107,0.15)' }}
+                      >
+                        Attempt →
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 12, fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}>
+                Completing missed questions will not affect your final score — but it builds real practice.
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <StarBorder as={Link} href="/dashboard" color="#89f7ff" speed="8s" thickness={1.2}>
+              ← Return to Base
+            </StarBorder>
+            <StarBorder as="button" onClick={() => window.location.reload()} color="#ff7faa" speed="6s" thickness={1.2}>
+              ↺ Replay Mission
+            </StarBorder>
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
+
+  // ── PLAYING / COACHING ────────────────────────────────────────────────
+  const riskColor = riskLevel > 70 ? '#ff4f7a' : riskLevel > 50 ? '#ffc06b' : '#89f7ff'
+
+  return (
+    <div className="game-page" style={{ minHeight: '100vh' }}>
+      <div className="space-bg" aria-hidden="true" />
+
+      {/* HUD header */}
+      <header style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        padding: '14px 20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        background: 'rgba(3, 9, 20, 0.9)',
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(255, 176, 214, 0.18)',
+      }}>
+        {/* Brand + scene info */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              width: 10, height: 10, borderRadius: '50%',
+              background: 'var(--accent)',
+              boxShadow: '0 0 14px var(--accent)',
+              display: 'inline-block', flexShrink: 0
+            }} />
+            <span style={{ fontFamily: 'var(--font-orbitron)', fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text)' }}>
+              SafePath
+            </span>
+          </div>
+          <div style={{ width: 1, height: 20, background: 'rgba(255,176,214,0.2)' }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--font-orbitron)', letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {scenario.category}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {scenario.title}
+            </div>
+          </div>
+        </div>
+
+        {/* Stats HUD */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+          {[
+            { label: 'RISK', value: riskLevel, color: riskColor },
+            { label: 'CONF', value: confidence, color: '#89f7ff' },
+            { label: 'EQ', value: eqScore, color: '#ffc4dd' },
+          ].map(m => (
+            <div key={m.label} style={{
+              background: 'rgba(9,18,36,0.8)',
+              border: `1px solid ${m.color}33`,
+              borderRadius: 10,
+              padding: '6px 10px',
+              textAlign: 'center',
+              minWidth: 64,
+            }}>
+              <div style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--muted)', fontFamily: 'var(--font-orbitron)' }}>{m.label}</div>
+              <div style={{ height: 3, borderRadius: 999, background: 'rgba(255,255,255,0.08)', margin: '3px 0' }}>
+                <motion.div style={{ height: '100%', borderRadius: 999, background: m.color }} animate={{ width: `${m.value}%` }} transition={{ duration: 0.6 }} />
+              </div>
+              <div style={{ fontSize: 15, fontFamily: 'var(--font-mono)', color: m.color, fontWeight: 700 }}>{m.value}%</div>
+            </div>
+          ))}
+
+          <Link href="/dashboard" style={{
+            fontSize: 11,
+            color: 'var(--muted)',
+            textDecoration: 'none',
+            padding: '6px 10px',
+            border: '1px solid rgba(255,176,214,0.2)',
+            borderRadius: 8,
+            letterSpacing: '0.06em',
+          }}>
+            ← EXIT
+          </Link>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <main style={{ maxWidth: 1120, margin: '0 auto', paddingTop: 88, padding: '88px 20px 40px' }}>
+        <AnimatePresence mode="wait">
+          {phase === 'playing' ? (
+            <motion.div
+              key={currentNodeId}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3 }}
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}
+              className="scenario-grid"
+            >
+              {/* Left: scene description */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Mode badge / Retry banner */}
+                {missedNodes.some(m => m.nodeId === currentNodeId) ? (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 10,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,192,107,0.5)',
+                    background: 'rgba(255,192,107,0.1)',
+                  }}>
+                    <span style={{ fontSize: 16 }}>⏱</span>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#ffc06b', fontFamily: 'var(--font-orbitron)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        RETRY MODE — Timed-Out Question
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                        You have 30 seconds. This attempt won't affect your final score.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '5px 12px',
+                      borderRadius: 999,
+                      border: '1px solid rgba(255,176,214,0.3)',
+                      fontSize: 11,
+                      letterSpacing: '0.1em',
+                      color: 'var(--accent-2)',
+                      background: 'rgba(255,127,170,0.08)',
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} />
+                      {scenario.mode.toUpperCase()} · NODE {history.length}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{elapsed}s elapsed</span>
                   </div>
                 )}
-              </div>
 
-              {!loadingCoach && coaching && (
-                <>
-                  <p style={{ fontSize: 14, color: coachingText, lineHeight: 1.8, marginBottom: 20 }}>{coaching.feedback}</p>
+                {/* Scene card */}
+                <div style={{
+                  background: 'rgba(9, 18, 36, 0.82)',
+                  border: '1px solid rgba(255, 176, 214, 0.2)',
+                  borderRadius: 18,
+                  padding: '28px 24px',
+                  minHeight: 200,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                }}>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '3px 10px',
+                    borderRadius: 999,
+                    background: 'rgba(255,127,170,0.12)',
+                    border: '1px solid rgba(255,127,170,0.25)',
+                    fontSize: 10,
+                    color: 'var(--accent)',
+                    letterSpacing: '0.1em',
+                    fontFamily: 'var(--font-orbitron)',
+                    marginBottom: 16,
+                    width: 'fit-content',
+                  }}>
+                    ◉ INCOMING INTEL
+                  </div>
+                  <h2 style={{
+                    fontSize: 'clamp(1rem, 2.5vw, 1.3rem)',
+                    fontFamily: 'var(--font-heading)',
+                    color: 'var(--text)',
+                    lineHeight: 1.55,
+                    fontWeight: 500,
+                  }}>
+                    {currentNode?.description || ''}
+                  </h2>
+                </div>
 
-                  {!showHint ? (
-                    <button onClick={() => setShowHint(true)} style={{
-                      fontSize: 12, color: scenario.color === '#7b1d3a' ? '#e8759a' : '#f3a8c0',
-                      background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600,
-                      display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20,
-                    }}>
-                      💡 Show safety tip
-                    </button>
-                  ) : (
-                    <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(232,117,154,0.1)', border: '1px solid rgba(232,117,154,0.2)', marginBottom: 20, fontSize: 13, color: '#f3a8c0', fontStyle: 'italic' }}>
-                      💡 {coaching.hint}
+                {/* Time pressure bar */}
+                {isCritical && (
+                  <div style={{
+                    background: 'rgba(9,18,36,0.82)',
+                    border: `1px solid ${timeLeft < 6 ? '#ff4f7a44' : 'rgba(255,176,214,0.2)'}`,
+                    borderRadius: 12,
+                    padding: '12px 16px',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontSize: 10, letterSpacing: '0.1em', color: timeLeft < 6 ? '#ff4f7a' : missedNodes.some(m => m.nodeId === currentNodeId) ? '#ffc06b' : 'var(--accent)', fontFamily: 'var(--font-orbitron)' }}>
+                        {missedNodes.some(m => m.nodeId === currentNodeId) ? '⏱ RETRY TIMER' : '⏱ TIME PRESSURE'}
+                      </span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, color: timeLeft < 6 ? '#ff4f7a' : '#ffc06b', fontWeight: 700 }}>
+                        {timeLeft}s
+                      </span>
                     </div>
-                  )}
-
-                  {/* Score deltas */}
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-                    <div style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: coaching.riskDelta < 0 ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: coaching.riskDelta < 0 ? '#4ade80' : '#f87171', border: `1px solid ${coaching.riskDelta < 0 ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}` }}>
-                      Risk {coaching.riskDelta < 0 ? '▼' : '▲'} {Math.abs(coaching.riskDelta)}
-                    </div>
-                    <div style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'rgba(232,117,154,0.1)', color: '#f3a8c0', border: '1px solid rgba(232,117,154,0.2)' }}>
-                      EQ +{coaching.eqDelta} · Confidence +{Math.abs(coaching.eqDelta)}
+                    <div style={{ height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                      <motion.div
+                        style={{ height: '100%', borderRadius: 999, background: `linear-gradient(90deg, #ffc06b, ${timeLeft < 6 ? '#ff4f7a' : '#ff7faa'})` }}
+                        animate={{ width: `${(timeLeft / 15) * 100}%` }}
+                        transition={{ duration: 1, ease: 'linear' }}
+                      />
                     </div>
                   </div>
+                )}
 
-                  <button onClick={continueScenario} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                    {currentNode?.choices.find(c => c.id === selectedChoice)?.nextNodeId &&
-                      scenario.nodes[currentNode.choices.find(c => c.id === selectedChoice)!.nextNodeId!]?.isEnd
-                      ? 'See Outcome →'
-                      : 'Continue →'
-                    }
-                  </button>
-                </>
-              )}
-
-              {loadingCoach && (
-                <div style={{ textAlign: 'center', padding: '20px 0', color: hudMuted, fontSize: 13 }}>
-                  Analysing your decision…
+                {/* Scenario context hint */}
+                <div style={{
+                  fontSize: 12,
+                  color: 'var(--muted)',
+                  padding: '10px 14px',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px dashed rgba(255,176,214,0.15)',
+                  borderRadius: 10,
+                  fontStyle: 'italic',
+                  lineHeight: 1.5,
+                }}>
+                  {scenario.context}
                 </div>
-              )}
-            </div>
+              </div>
+
+              {/* Right: interaction / choices */}
+              <div style={{ overflowY: 'auto', maxHeight: '72vh' }}>
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--muted)', fontFamily: 'var(--font-orbitron)', textTransform: 'uppercase' }}>
+                    Choose your response
+                  </span>
+                </div>
+                {renderInteraction()}
+              </div>
+            </motion.div>
+          ) : (
+            /* COACHING PANEL */
+            <motion.div
+              key="coaching"
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              style={{ maxWidth: 680, margin: '0 auto', paddingTop: 20 }}
+            >
+              <div style={{
+                background: 'rgba(9, 18, 36, 0.9)',
+                border: '1px solid rgba(255, 196, 221, 0.3)',
+                borderRadius: 22,
+                padding: '36px 32px',
+                position: 'relative',
+              }}>
+                {/* Coach avatar bubble */}
+                <div style={{
+                  position: 'absolute',
+                  top: -22,
+                  right: 32,
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  background: 'rgba(9,18,36,0.95)',
+                  border: '2px solid var(--accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 24,
+                  boxShadow: '0 0 20px rgba(255,127,170,0.4)',
+                }}>
+                  🤖
+                </div>
+
+                <div style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--accent)', fontFamily: 'var(--font-orbitron)', marginBottom: 16, textTransform: 'uppercase' }}>
+                  <DecryptedText text="AI Coach Analysis" animateOn="view" sequential speed={20} />
+                </div>
+
+                {loadingCoach ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0', color: 'var(--muted)' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1s infinite' }} />
+                    <span style={{ fontStyle: 'italic', fontSize: 14 }}>Analysing your strategy…</span>
+                  </div>
+                ) : (
+                  <>
+                    <p style={{
+                      fontSize: 'clamp(1rem, 2vw, 1.25rem)',
+                      fontFamily: 'var(--font-heading)',
+                      color: 'var(--text)',
+                      lineHeight: 1.6,
+                      fontStyle: 'italic',
+                      borderLeft: '3px solid var(--accent)',
+                      paddingLeft: 18,
+                      marginBottom: 20,
+                    }}>
+                      {coaching?.feedback || "Your instincts are developing well."}
+                    </p>
+
+                    {coaching?.hint && (
+                      <div style={{
+                        background: 'rgba(255,127,170,0.06)',
+                        border: '1px solid rgba(255,176,214,0.2)',
+                        borderRadius: 12,
+                        padding: '12px 16px',
+                        marginBottom: 20,
+                      }}>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-orbitron)', letterSpacing: '0.08em', marginBottom: 6 }}>💡 COACHING TIP</div>
+                        <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>{coaching.hint}</p>
+                      </div>
+                    )}
+
+                    {/* Delta pills */}
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+                      {coaching && [
+                        { label: 'Risk', delta: coaching.riskDelta, good: coaching.riskDelta < 0, color: '#ff6f91' },
+                        { label: 'EQ', delta: coaching.eqDelta, good: coaching.eqDelta > 0, color: '#ffc4dd' },
+                      ].map(d => (
+                        <span key={d.label} style={{
+                          padding: '4px 10px',
+                          borderRadius: 999,
+                          fontSize: 11,
+                          fontFamily: 'var(--font-mono)',
+                          background: d.good ? 'rgba(0,255,163,0.12)' : 'rgba(255,79,122,0.12)',
+                          border: `1px solid ${d.good ? '#00ffa344' : '#ff4f7a44'}`,
+                          color: d.good ? '#00ffcc' : '#ff7faa',
+                        }}>
+                          {d.label} {d.delta > 0 ? '+' : ''}{d.delta}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <StarBorder
+                    as="button"
+                    onClick={continueScenario}
+                    disabled={loadingCoach}
+                    color="#ffc4dd"
+                    speed="7s"
+                    thickness={1.2}
+                  >
+                    {loadingCoach ? 'Analysing…' : 'Next Phase →'}
+                  </StarBorder>
+                </div>
+              </div>
+            </motion.div>
           )}
-        </div>
-      </div>
+        </AnimatePresence>
+      </main>
 
       <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.2); }
+        @media (max-width: 768px) {
+          .scenario-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+        .scenario-choice-btn:hover {
+          background: rgba(255,127,170,0.1) !important;
+          border-color: rgba(255,176,214,0.5) !important;
         }
       `}</style>
     </div>
