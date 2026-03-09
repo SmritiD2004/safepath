@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import StarBorder from './StarBorder'
 
 interface GridBlock {
   type: 'empty' | 'start' | 'exit' | 'risk' | 'safety'
   label?: string
   icon?: string
-  value?: number // risk reduction or increase
+  value?: number
+  isClicked?: boolean // NEW: Track if tile was clicked
 }
 
 interface SafetyGridEngineProps {
@@ -23,7 +24,7 @@ interface SafetyGridEngineProps {
 
 const DEFAULT_START = { x: 0, y: 0 }
 const DEFAULT_EXIT = { x: 4, y: 4 }
-const DEFAULT_RISKS: any[] = []
+const DEFAULT_RISKS: Array<{ x: number; y: number; label: string }> = []
 
 export default function SafetyGridEngine({
   gridSize = 5,
@@ -38,22 +39,18 @@ export default function SafetyGridEngine({
   const [inventory, setInventory] = useState(availableBlocks)
   const [selectedBlockIdx, setSelectedBlockIdx] = useState<number | null>(null)
   const [path, setPath] = useState<{ x: number; y: number }[]>([])
-  
-  // Update inventory only when availableBlocks changes physically (new scenario)
-  const availableBlocksKey = availableBlocks.map(b => `${b.label}:${b.count}`).join(',')
+
   useEffect(() => {
     setInventory(availableBlocks)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableBlocksKey])
+  }, [availableBlocks])
+
   const [isEvaluating, setIsEvaluating] = useState(false)
   const [message, setMessage] = useState('Place your safety blocks to secure a path.')
   const [movesLeft, setMovesLeft] = useState(12)
   const [currentRisk, setCurrentRisk] = useState(40)
 
-  // Use a ref to track initialization and prevent resets during parent re-renders (timer ticks)
   const isInitialized = useRef(false)
 
-  // Initialize grid and state ONLY ONCE or when critical identity props change
   useEffect(() => {
     if (isInitialized.current) return
     isInitialized.current = true
@@ -62,11 +59,9 @@ export default function SafetyGridEngine({
       Array(gridSize).fill(null).map(() => ({ type: 'empty' }))
     )
     
-    // Set fixed points
     newGrid[startPos.y][startPos.x] = { type: 'start', label: 'START', icon: '📍' }
     newGrid[exitPos.y][exitPos.x] = { type: 'exit', label: 'EXIT', icon: '🏁' }
     
-    // Set pre-placed risks
     initialRisks.forEach(risk => {
       newGrid[risk.y][risk.x] = { type: 'risk', label: risk.label, icon: '⚠️', value: 20 }
     })
@@ -87,8 +82,7 @@ export default function SafetyGridEngine({
     if (selectedBlockIdx === null) {
       if (grid[y][x].type === 'safety') {
         const type = grid[y][x].label
-        // Remove block and return to inventory
-        const newGrid = [...grid]
+        const newGrid = grid.map(row => [...row])
         newGrid[y][x] = { type: 'empty' }
         setGrid(newGrid)
         
@@ -103,10 +97,19 @@ export default function SafetyGridEngine({
     const block = inventory[selectedBlockIdx]
     if (block.count <= 0) return
 
-    // Place block
-    const newGrid = [...grid]
-    newGrid[y][x] = { type: 'safety', label: block.label, icon: block.icon, value: -15 }
+    // NEW: Place block with clicked visual feedback
+    const newGrid = grid.map(row => [...row])
+    newGrid[y][x] = { type: 'safety', label: block.label, icon: block.icon, value: -15, isClicked: true }
     setGrid(newGrid)
+
+    // Reset click state after animation
+    setTimeout(() => {
+      setGrid(prev => {
+        const updated = prev.map(row => [...row])
+        updated[y][x].isClicked = false
+        return updated
+      })
+    }, 300)
 
     const newInv = [...inventory]
     newInv[selectedBlockIdx].count--
@@ -117,10 +120,21 @@ export default function SafetyGridEngine({
     if (newInv[selectedBlockIdx].count === 0) setSelectedBlockIdx(null)
   }
 
-  // Simple BFS to find path
+  // FIXED: Properly evaluate path and require safety blocks
   const evaluatePath = async () => {
     setIsEvaluating(true)
     setMessage('Evaluating path safety...')
+    
+    // NEW: Check if user actually placed any safety blocks
+    const hasSafetyBlocks = grid.some(row => row.some(cell => cell.type === 'safety'))
+    if (!hasSafetyBlocks) {
+      setMessage('❌ You must place safety blocks first!')
+      setTimeout(() => {
+        setIsEvaluating(false)
+        setMessage('Place your safety blocks to secure a path.')
+      }, 2000)
+      return
+    }
     
     const queue: { x: number; y: number; p: {x:number, y:number}[] }[] = [{ ...startPos, p: [startPos] }]
     const visited = new Set<string>()
@@ -145,9 +159,8 @@ export default function SafetyGridEngine({
         const nx = x + dx, ny = y + dy
         if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
           const cell = grid[ny][nx]
-          // Can walk on start, exit, safety, and empty. 
-          // Empty is allowed but it's "neutral". Risk blocks are walkable but increase risk.
-          if (cell.type !== 'risk') {
+          // Only allow walking on: START, EXIT, SAFETY blocks (not empty or risk)
+          if (cell.type === 'start' || cell.type === 'exit' || cell.type === 'safety') {
              queue.push({ x: nx, y: ny, p: [...p, { x: nx, y: ny }] })
           }
         }
@@ -156,19 +169,22 @@ export default function SafetyGridEngine({
 
     if (foundPath) {
       setPath(foundPath)
-      setMessage('SAFE PATH FOUND!')
-      // Calculate safety score (higher is better)
-      let score = 100 - (foundPath.length * 2) // length penalty
-      onComplete(score)
+      setMessage('✅ SAFE PATH FOUND!')
+      const score = 100 - (foundPath.length * 2)
+      
+      // FIXED: Properly await before calling onComplete
+      setTimeout(() => {
+        onComplete(score)
+        setIsEvaluating(false)
+      }, 1000)
     } else {
-      setMessage('NO CLEAR PATH! Re-arrange blocks.')
+      setMessage('❌ NO CLEAR PATH! Re-arrange blocks.')
       setTimeout(() => setIsEvaluating(false), 2000)
     }
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* HUD: Moves and Risk */}
       <div style={{ display: 'flex', gap: 12, marginBottom: -8 }}>
         <div style={{ flex: 1, background: 'rgba(0,0,0,0.4)', padding: '10px 15px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
           <div style={{ fontSize: 10, opacity: 0.6, textTransform: 'uppercase', fontWeight: 700 }}>Strategy Moves</div>
@@ -192,7 +208,6 @@ export default function SafetyGridEngine({
           {message.toUpperCase()}
         </div>
         
-        {/* The Grid */}
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: `repeat(${gridSize}, 1fr)`, 
@@ -207,31 +222,40 @@ export default function SafetyGridEngine({
               <motion.div
                 key={`${x}-${y}`}
                 whileHover={(!isEvaluating && movesLeft > 0) ? { scale: 0.96 } : {}}
+                animate={cell.isClicked ? { scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] } : {}} // NEW: Click animation
                 onClick={() => handleCellClick(x, y)}
                 style={{
-                  background: isPath
-                    ? `${color}44`
-                    : cell.type === 'safety'
-                      ? `${color}28`
-                      : cell.type === 'start'
-                        ? 'rgba(0,255,163,0.15)'
-                        : cell.type === 'exit'
-                          ? 'rgba(255,192,107,0.15)'
-                          : cell.type === 'risk'
-                            ? 'rgba(255,79,122,0.15)'
-                            : 'rgba(255,255,255,0.05)',
-                  border: isPath
+                  background: cell.isClicked // NEW: Highlight clicked tiles
+                    ? `${color}66`
+                    : isPath
+                      ? `${color}44`
+                      : cell.type === 'safety'
+                        ? `${color}28`
+                        : cell.type === 'start'
+                          ? 'rgba(0,255,163,0.15)'
+                          : cell.type === 'exit'
+                            ? 'rgba(255,192,107,0.15)'
+                            : cell.type === 'risk'
+                              ? 'rgba(255,79,122,0.15)'
+                              : 'rgba(255,255,255,0.05)',
+                  border: cell.isClicked // NEW: Highlight border on click
                     ? `2px solid ${color}`
-                    : cell.type === 'safety'
+                    : isPath
                       ? `2px solid ${color}`
-                      : cell.type === 'start'
-                        ? '1px solid rgba(0,255,163,0.5)'
-                        : cell.type === 'exit'
-                          ? '1px solid rgba(255,192,107,0.5)'
-                          : cell.type === 'risk'
-                            ? '1px solid rgba(255,79,122,0.4)'
-                            : '1px solid rgba(255,255,255,0.1)',
-                  boxShadow: cell.type === 'safety' ? `0 0 12px ${color}55` : 'none',
+                      : cell.type === 'safety'
+                        ? `2px solid ${color}`
+                        : cell.type === 'start'
+                          ? '1px solid rgba(0,255,163,0.5)'
+                          : cell.type === 'exit'
+                            ? '1px solid rgba(255,192,107,0.5)'
+                            : cell.type === 'risk'
+                              ? '1px solid rgba(255,79,122,0.4)'
+                              : '1px solid rgba(255,255,255,0.1)',
+                  boxShadow: cell.isClicked // NEW: Glow on click
+                    ? `0 0 20px ${color}88, inset 0 0 15px ${color}44`
+                    : cell.type === 'safety' 
+                      ? `0 0 12px ${color}55` 
+                      : 'none',
                   borderRadius: 10,
                   display: 'flex',
                   alignItems: 'center',
@@ -263,7 +287,6 @@ export default function SafetyGridEngine({
         </div>
       </div>
 
-      {/* Inventory */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
         {inventory.map((block, idx) => (
           <motion.div

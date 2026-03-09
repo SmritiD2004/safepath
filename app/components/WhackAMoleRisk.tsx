@@ -53,6 +53,7 @@ export default function WhackAMoleRisk({
   // Completion effect
   useEffect(() => {
     if (timeLeft === 0 && isPlaying) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsPlaying(false)
       onComplete(foundCount)
     }

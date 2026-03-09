@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
 
 interface MatchPair {
   id: string
@@ -18,13 +18,11 @@ interface MatchTheFollowingProps {
 export default function MatchTheFollowing({ pairs, onComplete, color }: MatchTheFollowingProps) {
   const [selectedLeft, setSelectedLeft] = useState<string | null>(null)
   const [matches, setMatches] = useState<Record<string, string>>({})
-  const [shuffledRight, setShuffledRight] = useState<string[]>([])
   const [errors, setErrors] = useState<string[]>([])
-
-  useEffect(() => {
-    // Shuffle right column
-    setShuffledRight([...pairs.map(p => p.right)].sort(() => Math.random() - 0.5))
-  }, [pairs])
+  const shuffledRight = useMemo(
+    () => [...pairs.map((p) => p.right)].sort((a, b) => b.localeCompare(a)),
+    [pairs]
+  )
 
   const handleLeftClick = (id: string) => {
     if (matches[id]) return // Already matched

@@ -5,7 +5,6 @@ import Image from 'next/image'
 import { Chakra_Petch } from 'next/font/google'
 import { useEffect, useState } from 'react'
 import StarBorder from './components/StarBorder'
-import DecryptedText from './components/DecryptedText'
 import Hero from './components/Hero'
 import './landing-game.css'
 
@@ -305,7 +304,7 @@ export default function LandingPage() {
               <span>AI Coach Online</span>
             </div>
             <p className="footer-copy">
-              © {new Date().getFullYear()} SafePath Arena. Built for women's safety.
+              © {new Date().getFullYear()} SafePath Arena. Built for women&apos;s safety.
             </p>
             <div className="footer-badges">
               <span>Trauma-Informed</span>

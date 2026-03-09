@@ -29,6 +29,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const current = session?.user?.image
     if (current && AVATAR_OPTIONS.includes(current as (typeof AVATAR_OPTIONS)[number])) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedAvatar(current as (typeof AVATAR_OPTIONS)[number])
     }
   }, [session?.user?.image])

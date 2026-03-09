@@ -41,10 +41,58 @@ export default function RolePlayPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+      }
+    }
+  }, [])
+
+  async function speakText(text: string) {
+    const trimmed = text.trim()
+    if (!trimmed) return
+
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: trimmed }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        const detail =
+          typeof data?.detail === 'string'
+            ? data.detail
+            : typeof data?.error === 'string'
+              ? data.error
+              : `TTS failed (${res.status})`
+        throw new Error(detail)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+      }
+
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true })
+      await audio.play()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Voice playback failed'
+      setError(`Voice error: ${message}`)
+    }
+  }
 
   async function startSession() {
     if (!selectedScenarioId) return
@@ -66,6 +114,10 @@ export default function RolePlayPage() {
           content: 'Role-play session started. Practice setting clear boundaries and prioritizing your safety in each turn.',
         },
       ])
+      const scenarioContext = SCENARIOS[selectedScenarioId]?.context
+      if (scenarioContext) {
+        speakText(scenarioContext)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start role-play')
     } finally {
@@ -91,6 +143,7 @@ export default function RolePlayPage() {
 
     const npcId = `n-${Date.now()}`
     setMessages((prev) => [...prev, { id: npcId, speaker: 'NPC', content: '' }])
+    let npcText = ''
 
     try {
       const res = await fetch(`/api/roleplay/sessions/${session.id}/stream`, {
@@ -106,10 +159,12 @@ export default function RolePlayPage() {
         })
         const data = await fallback.json()
         if (!fallback.ok) throw new Error(data?.error || 'Role-play response failed.')
+        npcText = String(data.reply || '')
         setMessages((prev) =>
-          prev.map((m) => (m.id === npcId ? { ...m, content: String(data.reply || '') } : m))
+          prev.map((m) => (m.id === npcId ? { ...m, content: npcText } : m))
         )
         setSession((prev) => (prev ? { ...prev, ...data.session } : prev))
+        speakText(npcText)
         return
       }
 
@@ -127,6 +182,7 @@ export default function RolePlayPage() {
           if (!line.startsWith('data:')) continue
           const payload = JSON.parse(line.slice(5).trim())
           if (payload.type === 'chunk') {
+            npcText = `${npcText}${payload.text ?? ''}`
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === npcId ? { ...m, content: `${m.content}${payload.text ?? ''}` } : m
@@ -135,6 +191,7 @@ export default function RolePlayPage() {
           }
           if (payload.type === 'done') {
             setSession((prev) => (prev ? { ...prev, ...payload.session } : prev))
+            speakText(npcText)
           }
         }
       }
