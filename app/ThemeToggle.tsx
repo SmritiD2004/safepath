@@ -37,7 +37,7 @@ export default function ThemeToggle() {
       title="Toggle theme"
       style={{
         position: 'fixed',
-        right: 16,
+        left: 16,
         bottom: 16,
         zIndex: 200,
         borderRadius: 999,

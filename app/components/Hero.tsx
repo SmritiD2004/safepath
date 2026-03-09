@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { Chakra_Petch } from 'next/font/google'
 import { useEffect, useState } from 'react'
 import StarBorder from './StarBorder'
@@ -38,7 +39,7 @@ export default function Hero() {
           <span>
             <DecryptedText
               text="Stay Unstoppable."
-              animateOn='hover'
+              animateOn="hover"
               revealDirection="start"
               sequential={true}
               speed={40}
@@ -83,9 +84,12 @@ export default function Hero() {
           />
 
           {/* The image */}
-          <img
+          <Image
             src="/Hero-avatar.png"
             alt="SafePath Arena hero"
+            width={720}
+            height={920}
+            priority
             className="ha-img"
             style={{
               filter: glowActive

@@ -31,6 +31,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Current password is incorrect.' }, { status: 400 })
   }
 
+  const isSamePassword = await compare(parsed.data.newPassword, user.passwordHash)
+  if (isSamePassword) {
+    return NextResponse.json({ error: 'New password must be different from your current password.' }, { status: 400 })
+  }
+
   const nextHash = await hash(parsed.data.newPassword, 12)
   await db.user.update({
     where: { id: user.id },

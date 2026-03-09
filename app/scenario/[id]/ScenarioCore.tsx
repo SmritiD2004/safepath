@@ -30,7 +30,7 @@ interface CoachFeedback {
   coachMood: string
 }
 
-export default function ScenarioCore({ scenarioId, routeVariant: _routeVariant = 'legacy' }: ScenarioCoreProps) {
+export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
   const scenario = SCENARIOS[scenarioId]
 
   const [phase, setPhase] = useState<Phase>('playing')
@@ -271,7 +271,7 @@ export default function ScenarioCore({ scenarioId, routeVariant: _routeVariant =
   [memoizedInteractionData.pairs])
   const themeColor = useMemo(() => scenario?.color || '#ff6f91', [scenario?.color])
 
-  const handleInteractionComplete = useCallback((_score?: unknown) => {
+  const handleInteractionComplete = useCallback(() => {
     if (currentNode?.choices && currentNode.choices[0]) {
       handleChoice(currentNode.choices[0].id)
     }
@@ -779,7 +779,7 @@ export default function ScenarioCore({ scenarioId, routeVariant: _routeVariant =
                         RETRY MODE — Timed-Out Question
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                        You have 30 seconds. This attempt won't affect your final score.
+                        You have 30 seconds. This attempt won&apos;t affect your final score.
                       </div>
                     </div>
                   </div>

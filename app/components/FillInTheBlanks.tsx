@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 
 interface FillInTheBlanksProps {
   sentence: string // "I need you to [____] my [____]."
@@ -107,7 +107,7 @@ export default function FillInTheBlanks({
           animate={{ opacity: 1, y: 0 }}
           style={{ marginTop: 16, color: '#ff6f91', fontSize: 12, fontWeight: 700 }}
         >
-          THAT DOESN'T SEEM RIGHT. TRY AGAIN.
+          THAT DOESN&apos;T SEEM RIGHT. TRY AGAIN.
         </motion.div>
       )}
     </div>

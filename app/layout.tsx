@@ -4,6 +4,7 @@ import { SessionProvider } from 'next-auth/react'
 import './globals.css'
 import ThemeToggle from './ThemeToggle'
 import BackgroundEffects from './components/BackgroundEffects'
+import GlobalChatWidget from './components/GlobalChatWidget'
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
@@ -63,6 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div style={{ position: 'relative', zIndex: 10 }}>
             {children}
             <ThemeToggle />
+            <GlobalChatWidget />
           </div>
         </SessionProvider>
       </body>

@@ -11,16 +11,20 @@ type AvatarProps = {
 }
 
 export default function Avatar({ src, alt = 'User', size = 48, fallbackText = 'U' }: AvatarProps) {
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('safepath_theme') === 'light' ? 'light' : 'dark'
+    }
+    return 'dark'
+  })
   const s = `${size}px`
 
   useEffect(() => {
-    // Initial theme check
-    const saved = localStorage.getItem('safepath_theme')
-    if (saved === 'light') setTheme('light')
-
-    const handleThemeChange = (e: any) => {
-      setTheme(e.detail)
+    const handleThemeChange = (e: Event) => {
+      const custom = e as CustomEvent<'light' | 'dark'>
+      if (custom.detail === 'light' || custom.detail === 'dark') {
+        setTheme(custom.detail)
+      }
     }
 
     window.addEventListener('themeChanged', handleThemeChange)
@@ -29,6 +33,7 @@ export default function Avatar({ src, alt = 'User', size = 48, fallbackText = 'U
 
   const defaultAvatar = theme === 'light' ? '/Hero-Avatar-cute.png' : '/Hero-avatar.png'
   const displaySrc = src || defaultAvatar
+  const resolvedAlt = alt || fallbackText
 
   return (
     <div
@@ -44,7 +49,7 @@ export default function Avatar({ src, alt = 'User', size = 48, fallbackText = 'U
     >
       <Image 
         src={displaySrc} 
-        alt={alt} 
+        alt={resolvedAlt} 
         width={size} 
         height={size} 
         style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'top' }} 
