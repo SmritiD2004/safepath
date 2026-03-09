@@ -328,11 +328,12 @@ export default function ScenarioCore({ scenarioId, routeVariant: _routeVariant =
       case 'chat':
         return (
           <ScenarioChat
-            npcInitialMessage={memoizedInteractionData.npcInitial || "Hey, can we talk for a moment?"}
-            keywords={memoizedInteractionData.keywords || ['no', 'boundary', 'stop']}
-            onComplete={handleInteractionComplete}
-            color={themeColor}
-          />
+  scenarioId={scenario.id}
+  npcInitialMessage={memoizedInteractionData.npcInitial || "Hey, can we talk for a moment?"}
+  keywords={memoizedInteractionData.keywords || ['no', 'boundary', 'stop']}
+  onComplete={handleInteractionComplete}
+  color={themeColor}
+/>
         )
       case 'avatar-path':
         return (

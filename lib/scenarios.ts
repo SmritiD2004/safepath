@@ -62,6 +62,7 @@ type MiniScenarioSeed = {
   context: string
   backgroundMood: string
   prompt: string
+  npcInitial?: string
   saferChoice: string
   assertiveChoice: string
   riskyChoice: string
@@ -110,7 +111,7 @@ function createMiniScenario(seed: MiniScenarioSeed): Scenario {
             { key: seed.title, value: seed.saferChoice },
             { key: 'Situational Awareness', value: seed.assertiveChoice }
           ] : undefined,
-          npcInitial: seed.mode === 'Role-Play' ? `Hi, I noticed the ${seed.title.toLowerCase()}. What's your take?` : undefined,
+          npcInitial: seed.mode === 'Role-Play' ? (seed.npcInitial ?? `Hi there.`) : undefined,
           keywords: seed.mode === 'Role-Play' ? ['no', 'boundary', 'stop', 'respect'] : undefined,
           safeOption: seed.mode === 'Story' ? seed.saferChoice : undefined,
           riskyOption: seed.mode === 'Story' ? seed.riskyChoice : undefined,
@@ -533,6 +534,7 @@ const EXPANSION_SCENARIOS: Record<string, Scenario> = {
     context: 'During training, an instructor gives unsolicited personal comments.',
     backgroundMood: 'linear-gradient(135deg, #1d1f2c 0%, #3a2940 100%)',
     prompt: 'Comments shift from fitness guidance to appearance-focused remarks.',
+    npcInitial: "Good set! You're really improving. You know honestly — you'd look even better if you dropped a bit around here. Just saying as your trainer, it's motivating feedback.",
     saferChoice: 'Report to manager and request another trainer immediately.',
     assertiveChoice: 'State clear boundary: keep feedback exercise-focused.',
     riskyChoice: 'Laugh it off to avoid awkwardness.',
@@ -659,6 +661,7 @@ const EXPANSION_SCENARIOS: Record<string, Scenario> = {
     context: 'A stranger repeatedly interrupts your table despite polite refusal.',
     backgroundMood: 'linear-gradient(135deg, #18182a 0%, #322648 100%)',
     prompt: 'They ask personal questions and try to sit close repeatedly.',
+    npcInitial: "Hey! You look really focused — what do you do? Which company? Do you live around here? I'm Arjun, I run a small startup. Can I sit here for a bit?",
     saferChoice: 'Move to staffed desk area and inform co-working reception.',
     assertiveChoice: 'Set direct boundary and mention formal complaint option.',
     riskyChoice: 'Continue engaging to avoid appearing rude.',
@@ -731,6 +734,7 @@ const EXPANSION_SCENARIOS: Record<string, Scenario> = {
     context: 'A mentor starts messaging late night with personal comments.',
     backgroundMood: 'linear-gradient(135deg, #211225 0%, #431f44 100%)',
     prompt: 'They imply project opportunities depend on being “friendly.”',
+    npcInitial: "You did really well in today's client meeting. I think you have genuine potential here. Why don't we catch up this weekend over coffee — just the two of us?",
     saferChoice: 'Document messages and escalate through internship coordinator.',
     assertiveChoice: 'Set communication boundary to official channels only.',
     riskyChoice: 'Reply casually to keep opportunities open.',
@@ -749,6 +753,7 @@ const EXPANSION_SCENARIOS: Record<string, Scenario> = {
     context: 'A co-passenger in a shared cab keeps asking personal details and drop location.',
     backgroundMood: 'linear-gradient(135deg, #1f1224 0%, #3f1f44 100%)',
     prompt: 'They insist on walking you to your gate and ask you to unlock location sharing.',
+    npcInitial: "Hey, where are you headed? Koramangala? Me too — maybe we can share the drop? Actually where exactly do you stay? I know that area really well.",
     saferChoice: 'Decline firmly, alert driver support, and exit near a visible point.',
     assertiveChoice: 'State clear boundary and message trusted contact with trip details.',
     riskyChoice: 'Share details to avoid awkwardness.',
@@ -767,6 +772,7 @@ const EXPANSION_SCENARIOS: Record<string, Scenario> = {
     context: 'After a campus event, someone repeatedly messages and pushes for a private meetup.',
     backgroundMood: 'linear-gradient(135deg, #221329 0%, #442647 100%)',
     prompt: 'They claim they can help with opportunities if you meet alone tonight.',
+    npcInitial: "You were honestly the best at the panel today — I’ve been looking for someone like you. Can we meet tonight, just for an hour? I have a contact who can seriously accelerate your career.",
     saferChoice: 'Refuse private meeting and escalate to event coordinator if pressure continues.',
     assertiveChoice: 'Set boundary: communicate only in official group channels.',
     riskyChoice: 'Agree to meet because it may help your profile.',
