@@ -80,7 +80,7 @@ export default function Hero() {
           <div
             className="ha-bloom"
             aria-hidden="true"
-            style={{ opacity: glowActive ? 1 : 0.5, transition: 'opacity 2.2s ease' }}
+            style={{ opacity: glowActive ? 1 : 0.5, transition: 'opacity 2.2s ease'  }}
           />
 
           {/* The image */}
