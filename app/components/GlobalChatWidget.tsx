@@ -15,7 +15,7 @@ export default function GlobalChatWidget() {
     {
       role: 'assistant',
       content:
-        'SafePath Assistant is ready. Ask about safety scenarios, boundaries, role-play practice, or using features in this app.',
+        'SafePath Assistant is ready. Ask me about women\'s safety in India — helplines, legal rights, scenario practice, or safe commuting tips.',
     },
   ])
 
@@ -45,7 +45,7 @@ export default function GlobalChatWidget() {
       const reply =
         typeof data?.reply === 'string' && data.reply.trim()
           ? data.reply.trim()
-          : 'I can help with SafePath topics like scenarios, role-play, and safety decisions.'
+          : 'I can help with women\'s safety in India — scenarios, helplines, and safety decisions.'
 
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
     } catch {
@@ -174,7 +174,7 @@ export default function GlobalChatWidget() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about SafePath safety topics..."
+              placeholder="Ask about women's safety in India..."
               style={{
                 flex: 1,
                 borderRadius: 10,

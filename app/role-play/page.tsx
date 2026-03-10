@@ -41,7 +41,7 @@ export default function RolePlayPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const speechRef = useRef<SpeechSynthesisUtterance | null>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -49,49 +49,51 @@ export default function RolePlayPage() {
 
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.src = ''
-      }
+      window.speechSynthesis?.cancel()
     }
   }, [])
 
-  async function speakText(text: string) {
+  function speakText(text: string) {
     const trimmed = text.trim()
-    if (!trimmed) return
+    if (!trimmed || typeof window === 'undefined' || !window.speechSynthesis) return
 
-    try {
-      const res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: trimmed }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        const detail =
-          typeof data?.detail === 'string'
-            ? data.detail
-            : typeof data?.error === 'string'
-              ? data.error
-              : `TTS failed (${res.status})`
-        throw new Error(detail)
+    // Cancel any ongoing speech first
+    window.speechSynthesis.cancel()
+
+    const utterance = new SpeechSynthesisUtterance(trimmed)
+    speechRef.current = utterance
+
+    // Female voice keywords found across Chrome, Edge, Safari, Android
+    const FEMALE_HINTS = ['female', 'woman', 'zira', 'susan', 'hazel', 'moira',
+      'samantha', 'victoria', 'karen', 'veena', 'raveena', 'heera',
+      'google uk english female', 'google us english']
+
+    const voices = window.speechSynthesis.getVoices()
+
+    const femaleIndian =
+      // 1st choice: Indian English female by name hint
+      voices.find((v) => v.lang === 'en-IN' && FEMALE_HINTS.some((h) => v.name.toLowerCase().includes(h))) ??
+      // 2nd choice: any Indian English voice (usually female on most OS)
+      voices.find((v) => v.lang === 'en-IN') ??
+      // 3rd choice: any English female by name hint
+      voices.find((v) => v.lang.startsWith('en') && FEMALE_HINTS.some((h) => v.name.toLowerCase().includes(h))) ??
+      // 4th choice: any English voice
+      voices.find((v) => v.lang.startsWith('en'))
+
+    if (femaleIndian) utterance.voice = femaleIndian
+
+    utterance.lang = 'en-IN'
+    utterance.rate = 0.95
+    utterance.pitch = 1.2  // slightly higher pitch sounds more feminine
+    utterance.volume = 1
+
+    utterance.onerror = (e) => {
+      if (e.error !== 'interrupted') {
+        setError(`Voice error: ${e.error}`)
       }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.src = ''
-      }
-
-      const audio = new Audio(url)
-      audioRef.current = audio
-      audio.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true })
-      await audio.play()
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Voice playback failed'
-      setError(`Voice error: ${message}`)
     }
+
+    window.speechSynthesis.speak(utterance)
   }
 
   async function startSession() {

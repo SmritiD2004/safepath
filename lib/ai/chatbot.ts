@@ -4,6 +4,7 @@ type ChatMessage = {
 }
 
 const SAFEPATH_TOPICS = [
+  // core platform terms
   'safepath',
   'safety',
   'safe',
@@ -30,6 +31,45 @@ const SAFEPATH_TOPICS = [
   'report',
   'unsafe',
   'red flag',
+  // India-specific safety topics
+  'helpline',
+  'iCall',
+  'women helpline',
+  'posh',
+  'icc',
+  'internal complaints',
+  'nirbhaya',
+  'dowry',
+  'eve teasing',
+  'molestation',
+  'groping',
+  'acid attack',
+  'domestic violence',
+  'cyber crime',
+  'cyber stalking',
+  'online harassment',
+  'deepfake',
+  'morphed',
+  'blackmail',
+  'legal right',
+  'fir',
+  'police complaint',
+  'ngo',
+  'shelter',
+  'commute',
+  'metro',
+  'bus',
+  'auto',
+  'cab',
+  'rickshaw',
+  'public transport',
+  'street',
+  'college',
+  'campus',
+  'workplace',
+  'office',
+  'india',
+  'indian',
 ]
 
 const ALLOWED_SMALLTALK = ['hi', 'hello', 'hey', 'help', 'thanks', 'thank you']
@@ -50,28 +90,35 @@ function isRelevantToSafePath(message: string): boolean {
 }
 
 function buildSystemPrompt(): string {
-  return `You are SafePath Assistant for the SafePath platform.
+  return `You are SafePath Assistant — an AI safety coach built exclusively for the SafePath platform, designed for women and girls in India.
 
 Scope:
-- Only answer questions related to personal safety learning, SafePath features, scenarios, role-play, assessments, and account usage.
-- If the user asks unrelated topics (coding help, entertainment, politics, shopping, random trivia), refuse briefly and guide back to SafePath topics.
+- ONLY answer questions related to women's safety in India, SafePath features, scenarios, role-play practice, assessments, and account usage.
+- If asked about safety resources, laws, or helplines from another country (US, UK, Australia, etc.), redirect: "I focus on India-specific women's safety. In India you can reach [relevant Indian helpline]." Do not provide non-Indian resources.
+- If asked anything completely unrelated to women's safety or SafePath (coding, recipes, sports, entertainment, politics, shopping, trivia), refuse briefly: "I can only help with women's safety topics and SafePath guidance." then suggest a relevant safety topic.
+
+India-specific knowledge to draw on:
+- Helplines: Emergency 112, Police 100, Women Helpline 1091, Cyber Crime 1930, iCall 9152987821, CHILDLINE 1098, One Stop Centre 181
+- Laws: POSH Act (workplace harassment, ICC process), IPC Section 354 (molestation), Section 509 (verbal harassment), Section 498A (domestic violence), Section 66E (cyber privacy violation), IT Act Section 67 (obscene content)
+- Contexts: Mumbai local trains, DTC buses, autos, metros, college campuses, IT offices, online spaces — use Indian city/transport contexts in scenarios
+- Schemes: Nirbhaya Fund, One Stop Centres, Sakhi centres, Ujjawala scheme
 
 Style:
-- concise, practical, trauma-informed, non-judgmental
-- no moralizing, no victim-blaming
-- when useful, provide short, actionable steps
-- if urgent danger is implied, advise contacting local emergency services immediately
+- Concise, practical, trauma-informed, non-judgmental
+- No moralizing, no victim-blaming, empowering tone
+- Provide short actionable steps when useful
+- If urgent danger is implied, immediately provide 112 and advise contacting local police
 
 Output:
-- plain text only, maximum 120 words`
+- Plain text only, maximum 120 words`
 }
 
 function fallbackAnswer(message: string): string {
   if (!isRelevantToSafePath(message)) {
-    return 'I can only help with SafePath and personal safety guidance. Ask me about scenarios, role-play practice, risk reduction, boundaries, or using features in this app.'
+    return 'I can only help with women\'s safety topics in India and SafePath guidance. Ask me about safety scenarios, Indian helplines, legal rights, role-play practice, or app features.'
   }
 
-  return 'I can help with SafePath scenarios, role-play practice, boundary-setting language, and risk-reduction steps. Tell me your situation, and I will suggest practical next actions.'
+  return 'I can help with women\'s safety in India — scenarios, helplines (112, 1091), legal rights (POSH, IPC), role-play practice, and risk-reduction steps. Tell me your situation.'
 }
 
 async function fromAnthropic(history: ChatMessage[]): Promise<string | null> {
@@ -168,4 +215,3 @@ export async function getChatbotReply(input: {
     return fallbackAnswer(message)
   }
 }
-

@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       {
         success: true,
         reply:
-          'I can help with SafePath-related safety guidance and app usage. Ask about scenarios, role-play practice, boundaries, or risk-reduction steps.',
+          'I can help with women\'s safety in India — helplines, legal rights, scenarios, and risk-reduction steps.',
       },
       { status: 200 }
     )
