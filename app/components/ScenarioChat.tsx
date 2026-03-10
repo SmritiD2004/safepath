@@ -244,6 +244,8 @@ export default function ScenarioChat({
             opacity: (inputValue.trim() && !isSubmitting) ? 1 : 0.5,
             flexShrink: 0,
           }}
+          onMouseDown={(e) => (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.9)'}
+          onMouseUp={(e) => (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"></line>

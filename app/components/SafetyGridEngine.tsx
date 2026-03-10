@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import StarBorder from './StarBorder'
 
 interface GridBlock {
@@ -24,7 +24,7 @@ interface SafetyGridEngineProps {
 
 const DEFAULT_START = { x: 0, y: 0 }
 const DEFAULT_EXIT = { x: 4, y: 4 }
-const DEFAULT_RISKS: any[] = []
+const DEFAULT_RISKS: Array<{ x: number; y: number; label: string }> = []
 
 export default function SafetyGridEngine({
   gridSize = 5,
@@ -39,11 +39,10 @@ export default function SafetyGridEngine({
   const [inventory, setInventory] = useState(availableBlocks)
   const [selectedBlockIdx, setSelectedBlockIdx] = useState<number | null>(null)
   const [path, setPath] = useState<{ x: number; y: number }[]>([])
-  
-  const availableBlocksKey = availableBlocks.map(b => `${b.label}:${b.count}`).join(',')
+
   useEffect(() => {
     setInventory(availableBlocks)
-  }, [availableBlocksKey])
+  }, [availableBlocks])
 
   const [isEvaluating, setIsEvaluating] = useState(false)
   const [message, setMessage] = useState('Place your safety blocks to secure a path.')
@@ -171,7 +170,7 @@ export default function SafetyGridEngine({
     if (foundPath) {
       setPath(foundPath)
       setMessage('✅ SAFE PATH FOUND!')
-      let score = 100 - (foundPath.length * 2)
+      const score = 100 - (foundPath.length * 2)
       
       // FIXED: Properly await before calling onComplete
       setTimeout(() => {
