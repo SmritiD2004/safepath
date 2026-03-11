@@ -12,7 +12,8 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Missing ElevenLabs configuration' }, { status: 500 })
     }
 
-    const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5'
+    // eleven_flash_v2_5 — fastest + lowest quota usage, ideal for free tier
+    const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5'
     const outputFormat = process.env.ELEVENLABS_OUTPUT_FORMAT || 'mp3_22050_32'
     const optimizeLatency = process.env.ELEVENLABS_OPTIMIZE_LATENCY || '3'
     const ttsUrl = new URL(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`)
@@ -30,8 +31,11 @@ export async function POST(req: Request) {
         text: input,
         model_id: modelId,
         voice_settings: {
-          stability: 0.4,
-          similarity_boost: 0.8,
+          // Tuned for Matilda: warm, calm, trustworthy
+          stability: 0.65,
+          similarity_boost: 0.75,
+          style: 0.3,
+          use_speaker_boost: true,
         },
       }),
     })
@@ -70,4 +74,3 @@ export async function POST(req: Request) {
     )
   }
 }
-

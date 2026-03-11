@@ -1,20 +1,22 @@
 import { auth } from '@/auth'
 import { NextResponse } from 'next/server'
+import type { NextAuthRequest } from 'next-auth'
 
 /**
  * Next.js Middleware — server-side route protection.
  *
  * - /admin/*       → must be authenticated AND have ADMIN role
- * - /settings, /certificate, /assessment/* → must be authenticated
+ * - /certificate → must be authenticated
+ * - /assessment/*  → public (Skill Check should not require login)
  * - /dashboard     → open to guests (limited view handled in the page)
  * - All other routes (landing, login, signup, public APIs) → open
  */
 
-const protectedRoutes = ['/settings', '/certificate', '/assessment']
+const protectedRoutes = ['/certificate']
 const adminRoutes = ['/admin']
 
-export default auth((req) => {
-  const { pathname } = req.nextUrl
+export default auth((req: NextAuthRequest) => {
+  const { pathname, search } = req.nextUrl
 
   const isProtected = protectedRoutes.some((route) => pathname.startsWith(route))
   const isAdmin = adminRoutes.some((route) => pathname.startsWith(route))
@@ -22,7 +24,9 @@ export default auth((req) => {
   // Admin pages: must be logged in + ADMIN role
   if (isAdmin) {
     if (!req.auth?.user) {
-      return NextResponse.redirect(new URL('/login', req.url))
+      const loginUrl = new URL('/login', req.url)
+      loginUrl.searchParams.set('callbackUrl', `${pathname}${search}`)
+      return NextResponse.redirect(loginUrl)
     }
     if (req.auth.user.role !== 'ADMIN') {
       return NextResponse.redirect(new URL('/dashboard', req.url))
@@ -34,7 +38,7 @@ export default auth((req) => {
   if (isProtected) {
     if (!req.auth?.user) {
       const loginUrl = new URL('/login', req.url)
-      loginUrl.searchParams.set('callbackUrl', pathname)
+      loginUrl.searchParams.set('callbackUrl', `${pathname}${search}`)
       return NextResponse.redirect(loginUrl)
     }
     return NextResponse.next()

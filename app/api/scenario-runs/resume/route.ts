@@ -27,6 +27,7 @@ function reconstructRunState(run: {
   let confidence = run.initialConfidence
   let eqScore = run.initialEq
   const choiceHistory: string[] = []
+  const nodeHistory: string[] = [scenario.startNodeId]
 
   for (const event of run.choiceEvents) {
     choiceHistory.push(event.choiceText)
@@ -38,6 +39,9 @@ function reconstructRunState(run: {
     const choice = node?.choices.find((c) => c.id === event.choiceId)
     if (choice?.nextNodeId && scenario.nodes[choice.nextNodeId]) {
       currentNodeId = choice.nextNodeId
+      if (nodeHistory[nodeHistory.length - 1] !== currentNodeId) {
+        nodeHistory.push(currentNodeId)
+      }
     }
   }
 
@@ -49,6 +53,7 @@ function reconstructRunState(run: {
     confidence,
     eqScore,
     choiceHistory,
+    nodeHistory,
     isEnd: Boolean(scenario.nodes[currentNodeId]?.isEnd),
     elapsedSeconds: Math.max(0, Math.floor((Date.now() - run.startedAt.getTime()) / 1000)),
   }

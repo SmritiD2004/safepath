@@ -27,6 +27,11 @@ export async function GET(req: NextRequest) {
         completedScenarios: true,
         totalRuns: true,
         readinessLevel: true,
+        // ── Admin approval fields ──────────────────────────────
+        adminApproved: true,
+        adminReviewedAt: true,
+        adminNote: true,
+        // ──────────────────────────────────────────────────────
         user: {
           select: {
             id: true,

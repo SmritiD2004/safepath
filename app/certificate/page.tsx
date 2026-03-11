@@ -6,6 +6,9 @@ import Image from 'next/image'
 
 type CertificatePayload = {
   eligible: boolean
+  adminApproved?: boolean | null   // null = pending, true = approved
+  adminRejected?: boolean
+  adminNote?: string | null
   certificate?: {
     code: string
     issuedAt: string
@@ -16,6 +19,7 @@ type CertificatePayload = {
     completedScenarios: number
     totalRuns: number
     readinessLevel: string
+    adminApproved: boolean | null
   }
   user?: { name?: string | null; email?: string | null }
   metrics?: {
@@ -48,9 +52,7 @@ export default function CertificatePage() {
       .finally(() => {
         if (!ignore) setLoading(false)
       })
-    return () => {
-      ignore = true
-    }
+    return () => { ignore = true }
   }, [])
 
   if (loading) {
@@ -61,6 +63,53 @@ export default function CertificatePage() {
     )
   }
 
+  // ── Error ────────────────────────────────────────────────────────────────
+  if (data?.error) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '2rem 1rem' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto' }} className="card">
+          <div style={{ padding: 22 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, color: 'var(--text)', marginBottom: 8 }}>
+              Something went wrong
+            </h1>
+            <p style={{ color: 'var(--text-muted)' }}>{data.error}</p>
+            <div style={{ marginTop: 16 }}>
+              <Link href="/dashboard" className="btn-primary">Back to Dashboard</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Admin rejected ───────────────────────────────────────────────────────
+  if (data?.adminRejected) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '2rem 1rem' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto' }} className="card">
+          <div style={{ padding: 22 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, color: 'var(--text)', marginBottom: 8 }}>
+              Certificate Not Approved
+            </h1>
+            <p style={{ color: 'var(--text-muted)', marginBottom: 10 }}>
+              Your certificate application was reviewed and could not be approved at this time.
+            </p>
+            {data.adminNote && (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', background: 'var(--bg)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, border: '1px solid var(--border)' }}>
+                <strong>Reviewer note:</strong> {data.adminNote}
+              </div>
+            )}
+            <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+              <Link href="/dashboard" className="btn-primary">Go to Dashboard</Link>
+              <Link href="/role-play" className="btn-ghost">Keep Practicing</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Not yet eligible ─────────────────────────────────────────────────────
   if (!data?.eligible || !data.certificate) {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '2rem 1rem' }}>
@@ -87,6 +136,30 @@ export default function CertificatePage() {
     )
   }
 
+  // ── Eligible but pending admin approval ──────────────────────────────────
+  if (data.certificate.adminApproved === null || data.certificate.adminApproved === undefined) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '2rem 1rem' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto' }} className="card">
+          <div style={{ padding: 22 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 30, color: 'var(--text)', marginBottom: 8 }}>
+              Pending Admin Review
+            </h1>
+            <p style={{ color: 'var(--text-muted)', marginBottom: 10 }}>
+              You&apos;ve met all the requirements. Your certificate has been submitted and is awaiting
+              admin approval. You&apos;ll be able to view and download it once it&apos;s approved.
+            </p>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+              Certificate code: <strong style={{ color: 'var(--text)' }}>{data.certificate.code}</strong>
+            </div>
+            <Link href="/dashboard" className="btn-ghost">Back to Dashboard</Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Approved — show full certificate ─────────────────────────────────────
   const cert = data.certificate
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '2rem 1rem' }}>
@@ -141,12 +214,14 @@ export default function CertificatePage() {
             <div>Issued On: {new Date(cert.issuedAt).toLocaleDateString()}</div>
             <div>Issued By: {cert.issuedBy}</div>
             <div style={{ marginTop: 6 }}>
-              Verify URL: <a href={`/verify-certificate?code=${encodeURIComponent(cert.code)}`} style={{ color: 'var(--wine)' }}>
+              Verify URL:{' '}
+              <a href={`/verify-certificate?code=${encodeURIComponent(cert.code)}`} style={{ color: 'var(--wine)' }}>
                 /verify-certificate?code={cert.code}
               </a>
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
+            {/* QR is now served as a real server-generated PNG — no external dependency */}
             <Image
               src={`/api/certificate/qr?code=${encodeURIComponent(cert.code)}`}
               alt="Certificate verification QR"

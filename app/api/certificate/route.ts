@@ -1,7 +1,30 @@
+// app/api/certificate/route.ts
+//
+// Changes from original:
+//  1. Certificate creation now sets adminApproved: null (pending review)
+//  2. Response includes adminApproved status so the UI can show "pending" state
+//  3. select blocks updated to include new admin fields
+
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { calculateCertificationMetrics, generateCertificateCode } from '@/lib/certificate'
+
+const CERT_SELECT = {
+  id: true,
+  code: true,
+  issuedAt: true,
+  issuedBy: true,
+  avgConfidence: true,
+  avgEq: true,
+  avgRisk: true,
+  completedScenarios: true,
+  totalRuns: true,
+  readinessLevel: true,
+  adminApproved: true,
+  adminReviewedAt: true,
+  adminNote: true,
+} as const
 
 export async function GET() {
   try {
@@ -26,39 +49,23 @@ export async function GET() {
         },
       }),
     ])
+
     if (!user) {
       return NextResponse.json({ error: 'User not found.' }, { status: 404 })
     }
 
     const metrics = calculateCertificationMetrics(runs)
     if (!metrics.certificateUnlocked) {
-      return NextResponse.json(
-        {
-          eligible: false,
-          metrics,
-        },
-        { status: 200 }
-      )
+      return NextResponse.json({ eligible: false, metrics }, { status: 200 })
     }
 
-    let cert = await db.userCertificate.findUnique({
-      where: { userId },
-      select: {
-        id: true,
-        code: true,
-        issuedAt: true,
-        issuedBy: true,
-        avgConfidence: true,
-        avgEq: true,
-        avgRisk: true,
-        completedScenarios: true,
-        totalRuns: true,
-        readinessLevel: true,
-      },
-    })
-
-    if (!cert) {
-      cert = await db.userCertificate.create({
+    // Fetch or create the certificate record
+    const cert =
+      (await db.userCertificate.findUnique({
+        where: { userId },
+        select: CERT_SELECT,
+      })) ??
+      (await db.userCertificate.create({
         data: {
           userId,
           code: generateCertificateCode(),
@@ -68,29 +75,30 @@ export async function GET() {
           completedScenarios: metrics.done,
           totalRuns: metrics.totalRuns,
           readinessLevel: metrics.readinessLevel,
+          adminApproved: null, // pending admin review
         },
-        select: {
-          id: true,
-          code: true,
-          issuedAt: true,
-          issuedBy: true,
-          avgConfidence: true,
-          avgEq: true,
-          avgRisk: true,
-          completedScenarios: true,
-          totalRuns: true,
-          readinessLevel: true,
+        select: CERT_SELECT,
+      }))
+
+    // If admin has rejected, treat as ineligible with a reason
+    if (cert.adminApproved === false) {
+      return NextResponse.json(
+        {
+          eligible: false,
+          adminRejected: true,
+          adminNote: cert.adminNote ?? null,
+          metrics,
         },
-      })
+        { status: 200 }
+      )
     }
 
     return NextResponse.json({
       eligible: true,
+      // adminApproved: null = pending, true = fully approved
+      adminApproved: cert.adminApproved ?? null,
       certificate: cert,
-      user: {
-        name: user.name,
-        email: user.email,
-      },
+      user: { name: user.name, email: user.email },
       metrics,
     })
   } catch {

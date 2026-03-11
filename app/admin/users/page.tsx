@@ -45,7 +45,7 @@ export default async function AdminUsersPage() {
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: '#f8f5f6' }}>
+            <tr style={{ background: 'var(--bg-2)' }}>
               <Th>Name</Th>
               <Th>Email</Th>
               <Th>Role</Th>
@@ -74,7 +74,7 @@ export default async function AdminUsersPage() {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="card" style={{ padding: 14, background: 'linear-gradient(180deg, #fff, #fbf8f9)' }}>
+    <div className="card" style={{ padding: 14, background: 'var(--bg-card)' }}>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
       <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28 }}>{value}</div>
     </div>

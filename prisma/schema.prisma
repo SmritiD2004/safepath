@@ -169,20 +169,29 @@ model RolePlayMessage {
 }
 
 model UserCertificate {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
-  code               String   @unique
-  issuedAt           DateTime @default(now())
-  issuedBy           String   @default("SafePath")
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  code               String    @unique
+  issuedAt           DateTime  @default(now())
+  issuedBy           String    @default("SafePath")
   avgConfidence      Int
   avgEq              Int
   avgRisk            Int
   completedScenarios Int
   totalRuns          Int
   readinessLevel     String
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // ── Admin approval ──────────────────────────────────────────────────────────
+  // adminApproved: null = pending, true = approved, false = rejected
+  adminApproved      Boolean?
+  adminReviewedAt    DateTime?
+  adminNote          String?   // optional rejection/approval comment
+  // ────────────────────────────────────────────────────────────────────────────
+
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([issuedAt])
+  @@index([adminApproved]) // speeds up admin dashboard queries
 }
 
 enum UserRole {

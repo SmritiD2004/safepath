@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import SCENARIOS from '@/lib/scenarios'
 import { applyChoiceScoring } from '@/lib/scoring'
 import StarBorder from '@/app/components/StarBorder'
@@ -32,6 +33,8 @@ interface CoachFeedback {
 
 export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
   const scenario = SCENARIOS[scenarioId]
+  const searchParams = useSearchParams()
+  const resumeRunId = searchParams.get('runId')
 
   const [phase, setPhase] = useState<Phase>('playing')
   const [currentNodeId, setCurrentNodeId] = useState(scenario?.startNodeId || '')
@@ -43,13 +46,15 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
   const [coaching, setCoaching] = useState<CoachFeedback | null>(null)
   const [loadingCoach, setLoadingCoach] = useState(false)
   const [elapsed, setElapsed] = useState(0)
-  const [_runId, setRunId] = useState<string | null>(null) // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [runId, setRunId] = useState<string | null>(null)
   const [timeLeft, setTimeLeft] = useState(15)
   const [isCritical, setIsCritical] = useState(false)
   const [missedNodes, setMissedNodes] = useState<Array<{ nodeId: string; description: string; choices: typeof scenario.nodes[string]['choices'] }>>([])
+  const [isResuming, setIsResuming] = useState(Boolean(resumeRunId))
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const hasStartedRef = useRef(false)
+  const hasCompletedRef = useRef(false)
   // Prevents handleTimeOut firing more than once per node
   const hasTimedOutRef = useRef(false)
   // Keep a live ref to currentNodeId so the timer closure always reads the latest value
@@ -57,12 +62,51 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
   useEffect(() => { currentNodeIdRef.current = currentNodeId }, [currentNodeId])
 
   useEffect(() => {
-    if (phase === 'playing' && !hasStartedRef.current) {
+    if (phase === 'playing' && !hasStartedRef.current && !isResuming && !runId) {
       hasStartedRef.current = true
       startScenarioRun()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase])
+  }, [phase, isResuming, runId])
+
+  useEffect(() => {
+    if (!resumeRunId) {
+      setIsResuming(false)
+      return
+    }
+    let ignore = false
+    setIsResuming(true)
+    fetch(`/api/scenario-runs/resume?runId=${encodeURIComponent(resumeRunId)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (ignore) return
+        if (data?.resumeAvailable && data?.runId) {
+          setRunId(String(data.runId))
+          setCurrentNodeId(String(data.currentNodeId))
+          setRiskLevel(Number(data.riskLevel) || 40)
+          setConfidence(Number(data.confidence) || 50)
+          setEqScore(Number(data.eqScore) || 50)
+          if (Array.isArray(data.nodeHistory) && data.nodeHistory.length > 0) {
+            setHistory(data.nodeHistory.map(String))
+          } else if (scenario?.startNodeId) {
+            setHistory([scenario.startNodeId, String(data.currentNodeId)].filter(Boolean))
+          }
+          if (data.isEnd) {
+            setPhase('end')
+          } else {
+            setPhase('playing')
+          }
+          hasStartedRef.current = true
+          setIsResuming(false)
+        } else {
+          setIsResuming(false)
+        }
+      })
+      .catch(() => setIsResuming(false))
+    return () => {
+      ignore = true
+    }
+  }, [resumeRunId, scenario?.startNodeId])
 
   useEffect(() => {
     if (phase === 'playing') {
@@ -144,6 +188,10 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
     if (!timeoutChoice) return
 
     const nextId = timeoutChoice.nextNodeId
+    if (timeoutChoice && runId) {
+      void recordChoice(timeoutChoice.id)
+    }
+
     if (nextId && scenario.nodes[nextId]) {
       // Use functional update to avoid stale history
       setHistory(h => {
@@ -185,6 +233,23 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
     }
   }
 
+  const recordChoice = useCallback(async (choiceId: string) => {
+    if (!runId) return
+    try {
+      await fetch('/api/scenario-runs/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          runId,
+          nodeId: currentNodeIdRef.current,
+          choiceId,
+        }),
+      })
+    } catch {
+      // ignore recording errors
+    }
+  }, [runId])
+
   const handleChoice = async (choiceId: string) => {
     if (selectedChoice || !scenario) return
     const currentNode = scenario.nodes[currentNodeId]
@@ -194,6 +259,7 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
     setSelectedChoice(choiceId)
     setPhase('coaching')
     setLoadingCoach(true)
+    void recordChoice(choiceId)
 
     const next = applyChoiceScoring({ risk: riskLevel, confidence, eq: eqScore }, choice)
     if (choice.riskImpact < 0) triggerConfetti()
@@ -259,6 +325,16 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
   }
 
   const currentNode = scenario?.nodes[currentNodeId]
+
+  useEffect(() => {
+    if (phase !== 'end' || !runId || hasCompletedRef.current) return
+    hasCompletedRef.current = true
+    void fetch('/api/scenario-runs/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId }),
+    })
+  }, [phase, runId])
 
   const memoizedInteractionData = useMemo(() => currentNode?.interactionData || {}, [currentNode?.interactionData])
   const memoizedTargets = useMemo(() => memoizedInteractionData.targets || [], [memoizedInteractionData.targets])

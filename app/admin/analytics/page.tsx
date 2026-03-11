@@ -53,7 +53,7 @@ export default async function AdminAnalyticsPage() {
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, marginBottom: 10 }}>Top Scenarios by Runs</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#f8f5f6' }}>
+              <tr style={{ background: 'var(--bg-2)' }}>
                 <Th>Scenario</Th>
                 <Th>Runs</Th>
               </tr>
@@ -73,7 +73,7 @@ export default async function AdminAnalyticsPage() {
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, marginBottom: 10 }}>Assessments</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#f8f5f6' }}>
+              <tr style={{ background: 'var(--bg-2)' }}>
                 <Th>Type</Th>
                 <Th>Attempts</Th>
                 <Th>Avg Score</Th>
@@ -97,7 +97,7 @@ export default async function AdminAnalyticsPage() {
 
 function Metric({ label, value, suffix = '' }: { label: string; value: number; suffix?: string }) {
   return (
-    <div className="card" style={{ padding: 14, background: 'linear-gradient(180deg, #fff, #f9f9fc)' }}>
+    <div className="card" style={{ padding: 14, background: 'var(--bg-card)' }}>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
       <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28 }}>
         {value}

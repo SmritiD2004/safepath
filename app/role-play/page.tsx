@@ -41,59 +41,105 @@ export default function RolePlayPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Preload voices as soon as they are available and keep the ref updated.
+  // This fixes the "male voice on refresh" bug — getVoices() returns []
+  // synchronously on first load; voices only populate after voiceschanged fires.
   useEffect(() => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return
+
+    function loadVoices() {
+      voicesRef.current = window.speechSynthesis.getVoices()
+    }
+
+    loadVoices() // may already be populated on subsequent renders
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices)
+
     return () => {
-      window.speechSynthesis?.cancel()
+      window.speechSynthesis.removeEventListener('voiceschanged', loadVoices)
+      window.speechSynthesis.cancel()
     }
   }, [])
 
-  function speakText(text: string) {
-    const trimmed = text.trim()
-    if (!trimmed || typeof window === 'undefined' || !window.speechSynthesis) return
+  // Web Speech API fallback — used when ElevenLabs fails or quota runs out
+  function speakWithWebSpeech(text: string) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return
 
-    // Cancel any ongoing speech first
     window.speechSynthesis.cancel()
-
-    const utterance = new SpeechSynthesisUtterance(trimmed)
+    const utterance = new SpeechSynthesisUtterance(text)
     speechRef.current = utterance
 
-    // Female voice keywords found across Chrome, Edge, Safari, Android
     const FEMALE_HINTS = ['female', 'woman', 'zira', 'susan', 'hazel', 'moira',
       'samantha', 'victoria', 'karen', 'veena', 'raveena', 'heera',
       'google uk english female', 'google us english']
 
-    const voices = window.speechSynthesis.getVoices()
-
-    const femaleIndian =
-      // 1st choice: Indian English female by name hint
+    const voices = voicesRef.current
+    const femaleVoice =
       voices.find((v) => v.lang === 'en-IN' && FEMALE_HINTS.some((h) => v.name.toLowerCase().includes(h))) ??
-      // 2nd choice: any Indian English voice (usually female on most OS)
       voices.find((v) => v.lang === 'en-IN') ??
-      // 3rd choice: any English female by name hint
       voices.find((v) => v.lang.startsWith('en') && FEMALE_HINTS.some((h) => v.name.toLowerCase().includes(h))) ??
-      // 4th choice: any English voice
       voices.find((v) => v.lang.startsWith('en'))
 
-    if (femaleIndian) utterance.voice = femaleIndian
-
+    if (femaleVoice) utterance.voice = femaleVoice
     utterance.lang = 'en-IN'
     utterance.rate = 0.95
-    utterance.pitch = 1.2  // slightly higher pitch sounds more feminine
+    utterance.pitch = 1.2
     utterance.volume = 1
 
     utterance.onerror = (e) => {
-      if (e.error !== 'interrupted') {
-        setError(`Voice error: ${e.error}`)
-      }
+      if (e.error !== 'interrupted') setError(`Voice error: ${e.error}`)
     }
 
     window.speechSynthesis.speak(utterance)
+  }
+
+  // Primary: ElevenLabs (Matilda) → Fallback: Web Speech API
+  async function speakText(text: string) {
+    const trimmed = text.trim()
+    if (!trimmed) return
+
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: trimmed }),
+      })
+
+      if (!res.ok) {
+        // ElevenLabs failed (quota, traffic, config) — fall back silently
+        speakWithWebSpeech(trimmed)
+        return
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+
+      // Stop any previous audio or web speech
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+      }
+      window.speechSynthesis?.cancel()
+
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true })
+      audio.onerror = () => {
+        URL.revokeObjectURL(url)
+        speakWithWebSpeech(trimmed)
+      }
+      await audio.play()
+    } catch {
+      // Network error — fall back to Web Speech API
+      speakWithWebSpeech(trimmed)
+    }
   }
 
   async function startSession() {

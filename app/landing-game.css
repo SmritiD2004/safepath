@@ -267,6 +267,210 @@
   font-weight: 700;
 }
 
+.knowledge-block {
+  margin-top: 18px;
+}
+
+.knowledge-block h3 {
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-2);
+}
+
+.helpline-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.helpline-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 196, 221, 0.24);
+  background: linear-gradient(145deg, rgba(10, 18, 32, 0.9), rgba(18, 24, 44, 0.78));
+  box-shadow: 0 10px 22px rgba(5, 10, 20, 0.4);
+}
+
+.helpline-pill {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(255, 192, 214, 0.18);
+  border: 1px solid rgba(255, 192, 214, 0.4);
+  color: #ffd0e8;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.helpline-title {
+  font-weight: 700;
+}
+
+.helpline-desc {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin-top: 4px;
+}
+
+.helpline-badge {
+  display: inline-flex;
+  margin-top: 8px;
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(137, 247, 255, 0.16);
+  border: 1px solid rgba(137, 247, 255, 0.4);
+  color: #89f7ff;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.module-list,
+.legal-list {
+  display: grid;
+  gap: 12px;
+}
+
+.module-card,
+.legal-card {
+  border: 1px solid rgba(255, 196, 221, 0.2);
+  border-radius: 18px;
+  background: rgba(9, 18, 36, 0.8);
+  overflow: hidden;
+}
+
+.module-summary,
+.legal-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.module-summary::-webkit-details-marker,
+.legal-summary::-webkit-details-marker {
+  display: none;
+}
+
+.module-left {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.module-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(255, 127, 170, 0.16);
+  border: 1px solid rgba(255, 127, 170, 0.4);
+  display: grid;
+  place-items: center;
+}
+
+.module-title,
+.legal-title {
+  font-weight: 700;
+}
+
+.module-sub,
+.legal-ref {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
+.module-caret,
+.legal-caret {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 196, 221, 0.35);
+  background: rgba(255, 196, 221, 0.12);
+  color: #ffc4dd;
+  font-size: 16px;
+  font-weight: 700;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+details[open] > summary .module-caret,
+details[open] > summary .legal-caret {
+  transform: rotate(180deg);
+  background: rgba(137, 247, 255, 0.18);
+  border-color: rgba(137, 247, 255, 0.55);
+  color: #89f7ff;
+}
+
+.module-body,
+.legal-body {
+  padding: 0 16px 16px;
+}
+
+.module-points,
+.module-tips-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #f2d6e5;
+  display: grid;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.module-tips {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 192, 214, 0.1);
+  border: 1px solid rgba(255, 192, 214, 0.25);
+}
+
+.module-tips-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #ffc4dd;
+  margin-bottom: 8px;
+}
+
+.legal-desc {
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+.legal-panel {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.legal-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #ffc4dd;
+  margin-bottom: 4px;
+}
+
+.knowledge-cta {
+  margin-top: 16px;
+  max-width: 420px;
+}
+
 .avatar-grid {
   margin-top: 16px;
   display: grid;
@@ -505,6 +709,31 @@ html[data-theme='light'] .avatar-xp-row {
 html[data-theme='light'] .loop-step {
   border-color: rgba(202, 126, 172, 0.45);
   background: rgba(255, 255, 255, 0.84);
+}
+
+html[data-theme='light'] .helpline-card,
+html[data-theme='light'] .module-card,
+html[data-theme='light'] .legal-card {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(202, 126, 172, 0.3);
+}
+
+html[data-theme='light'] .helpline-pill {
+  background: rgba(255, 182, 210, 0.25);
+  border-color: rgba(202, 126, 172, 0.35);
+  color: #b05070;
+}
+
+html[data-theme='light'] .helpline-desc,
+html[data-theme='light'] .module-sub,
+html[data-theme='light'] .legal-ref,
+html[data-theme='light'] .legal-desc {
+  color: #7f4f86;
+}
+
+html[data-theme='light'] .module-points,
+html[data-theme='light'] .module-tips-list {
+  color: #2b1430;
 }
 
 @keyframes pulse {

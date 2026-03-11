@@ -94,6 +94,15 @@ const FLOW = [
   { step: '04', title: 'Level up confidence score', desc: 'Track your growth and unlock achievements' },
 ]
 
+const HELPLINES = [
+  { number: '112', title: 'Emergency Services', desc: 'All-India emergency number (police, fire, ambulance)', badge: '24/7' },
+  { number: '181', title: 'Women Helpline', desc: 'Women in distress helpline', badge: '24/7' },
+  { number: '1091', title: 'Women in Distress', desc: 'Police women helpline', badge: '24/7' },
+  { number: '1930', title: 'Cyber Crime Helpline', desc: 'Report online harassment, stalking, fraud', badge: '24/7' },
+  { number: '181', title: 'Domestic Violence', desc: 'National Commission for Women', badge: '24/7' },
+  { number: '1098', title: 'Child Helpline', desc: 'For children in distress (under 18)', badge: '24/7' },
+]
+
 export default function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
@@ -121,6 +130,7 @@ export default function LandingPage() {
           </button>
           <nav className={`hud-links ${menuOpen ? 'open' : ''}`}>
             <a href="#missions">Missions</a>
+            <a href="#knowledge">Safety Knowledge</a>
             <a href="#squad">Squad</a>
             <a href="#loop">Game Loop</a>
             <Link href="/dashboard">Dashboard</Link>
@@ -154,6 +164,36 @@ export default function LandingPage() {
               </div>
             </article>
           ))}
+        </div>
+      </section>
+
+      {/* ── SAFETY KNOWLEDGE ── */}
+      <section id="knowledge" className="section">
+        <div className="section-title">
+          <h2>Safety Knowledge</h2>
+          <p>Emergency helplines are always visible. Full guides live in the Safety Knowledge hub.</p>
+        </div>
+
+        <div className="knowledge-block">
+          <h3>Emergency Helplines</h3>
+          <div className="helpline-grid">
+            {HELPLINES.map((h, i) => (
+              <div key={`${h.number}-${i}`} className="helpline-card">
+                <div className="helpline-pill">{h.number}</div>
+                <div>
+                  <div className="helpline-title">{h.title}</div>
+                  <div className="helpline-desc">{h.desc}</div>
+                  <div className="helpline-badge">{h.badge}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="knowledge-cta">
+          <StarBorder as={Link} href="/safety-knowledge" color="#ffb0d6" speed="7s" style={{ width: '100%' }}>
+            Open Safety Knowledge Hub →
+          </StarBorder>
         </div>
       </section>
 

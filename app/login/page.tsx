@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { getSession, signIn } from 'next-auth/react'
 import StarBorder from '../components/StarBorder'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
@@ -16,6 +17,9 @@ export default function LoginPage() {
   const [needsVerification, setNeedsVerification] = useState(false)
   const [verifyLink, setVerifyLink] = useState('')
 
+
+  const rawCallback = searchParams.get('callbackUrl')
+  const callbackUrl = rawCallback && rawCallback.startsWith('/') ? rawCallback : '/dashboard'
 
 async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
   e.preventDefault()
@@ -52,7 +56,7 @@ async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
   } else {
     const session = await getSession()
     const role = session?.user && 'role' in session.user ? (session.user.role as string | undefined) : undefined
-    router.push(role === 'ADMIN' ? '/admin/users' : '/dashboard')
+    router.push(role === 'ADMIN' ? '/admin/users' : callbackUrl)
   }
 }
 
@@ -121,7 +125,9 @@ async function resendVerification() {
             <div>
               <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
                 <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-mid)' }}>Password</span>
-                <a href="#" style={{ fontSize: 12, color: 'var(--wine)', textDecoration: 'none', fontWeight: 500 }}>Forgot?</a>
+                <Link href="/forgot-password" style={{ fontSize: 12, color: 'var(--wine)', textDecoration: 'none', fontWeight: 500 }}>
+                  Forgot?
+                </Link>
               </label>
               <input className="input-field" type="password" placeholder="••••••••" value={password} onChange={e => { setPassword(e.target.value); setError('') }} autoComplete="current-password" />
             </div>
@@ -179,7 +185,7 @@ async function resendVerification() {
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
 
-          <StarBorder as={Link} href="/dashboard" color="#ffc4dd" speed="8s" style={{ width: '100%' }}>
+          <StarBorder as={Link} href={callbackUrl} color="#ffc4dd" speed="8s" style={{ width: '100%' }}>
             Continue Without Account
           </StarBorder>
         </div>
