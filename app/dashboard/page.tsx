@@ -110,7 +110,6 @@ type ScenarioCardItem = {
   desc: string
   color: string
   backgroundMood: string
-  locked: boolean
   mode: string
 }
 
@@ -119,7 +118,6 @@ export default function DashboardPage() {
   const { data: session, status: authStatus } = useSession()
 
   const [tab, setTab] = useState<Tab>('scenarios')
-  const [completedScenarioIds, setCompletedScenarioIds] = useState<string[]>([])
   const [done, setDone] = useState(0)
   const [conf, setConf] = useState(0)
   const [eq, setEq] = useState(0)
@@ -134,7 +132,9 @@ export default function DashboardPage() {
   const [scenarioHeatmap, setScenarioHeatmap] = useState<ScenarioHeatmapCell[]>([])
   const [improvementGoals, setImprovementGoals] = useState<ImprovementGoal[]>([])
   const [weakestTags, setWeakestTags] = useState<string[]>([])
+  const [strongestTags, setStrongestTags] = useState<string[]>([])
   const [recommendedScenarioIds, setRecommendedScenarioIds] = useState<string[]>([])
+  const [avgDecisionSeconds, setAvgDecisionSeconds] = useState(0)
   const [currentStreakDays, setCurrentStreakDays] = useState(0)
   const [bestStreakDays, setBestStreakDays] = useState(0)
   const [totalCompletedRuns, setTotalCompletedRuns] = useState(0)
@@ -169,7 +169,6 @@ export default function DashboardPage() {
       .then((res) => res.json())
       .then((data) => {
         if (ignore) return
-        setCompletedScenarioIds(Array.isArray(data.completedScenarioIds) ? data.completedScenarioIds : [])
         setDone(Number(data.done) || 0)
         setConf(Number(data.avgConfidence) || 0)
         setEq(Number(data.avgEq) || 0)
@@ -186,7 +185,9 @@ export default function DashboardPage() {
         setScenarioHeatmap(Array.isArray(data.scenarioHeatmap) ? data.scenarioHeatmap : [])
         setImprovementGoals(Array.isArray(data.improvementGoals) ? data.improvementGoals : [])
         setWeakestTags(Array.isArray(data.weakestTags) ? data.weakestTags : [])
+        setStrongestTags(Array.isArray(data.strongestTags) ? data.strongestTags : [])
         setRecommendedScenarioIds(Array.isArray(data.recommendedScenarioIds) ? data.recommendedScenarioIds : [])
+        setAvgDecisionSeconds(Number(data.avgDecisionSeconds) || 0)
         setCurrentStreakDays(Number(data.currentStreakDays) || 0)
         setBestStreakDays(Number(data.bestStreakDays) || 0)
         setTotalCompletedRuns(Number(data.totalCompletedRuns) || 0)
@@ -224,28 +225,22 @@ export default function DashboardPage() {
   }, [isGuest])
 
   const scenarios: ScenarioCardItem[] = useMemo(() => {
-    const all = Object.values(SCENARIOS_MAP)
-    return all.map((s, index) => {
-      const previousId = index > 0 ? all[index - 1].id : null
-      const unlocked = index === 0 || isGuest || (previousId ? completedScenarioIds.includes(previousId) : true)
-      return {
-        id: s.id,
-        title: s.title,
-        category: s.category,
-        icon: s.icon,
-        difficulty: s.difficulty,
-        duration: s.duration,
-        estimatedMinutes: s.estimatedMinutes,
-        tags: s.tags,
-        intensity: s.intensity,
-        desc: s.context,
-        color: s.color,
-        backgroundMood: s.backgroundMood,
-        locked: !unlocked,
-        mode: s.mode,
-      }
-    })
-  }, [completedScenarioIds, isGuest])
+    return Object.values(SCENARIOS_MAP).map((s) => ({
+      id: s.id,
+      title: s.title,
+      category: s.category,
+      icon: s.icon,
+      difficulty: s.difficulty,
+      duration: s.duration,
+      estimatedMinutes: s.estimatedMinutes,
+      tags: s.tags,
+      intensity: s.intensity,
+      desc: s.context,
+      color: s.color,
+      backgroundMood: s.backgroundMood,
+      mode: s.mode,
+    }))
+  }, [])
 
   const availableTags = useMemo(() => {
     const allTags = new Set<string>()
@@ -273,7 +268,6 @@ export default function DashboardPage() {
     return recommendedScenarioIds
       .map((id) => scenarios.find((s) => s.id === id))
       .filter((s): s is ScenarioCardItem => Boolean(s))
-      .filter((s) => !s.locked)
   }, [recommendedScenarioIds, scenarios])
 
   async function updateTipPractice(tipId: string, practiced: boolean) {
@@ -583,10 +577,12 @@ export default function DashboardPage() {
             conf={conf}
             eq={eq}
             avgRisk={avgRisk}
-            confidenceEqDelta={confidenceEqDelta}
-            readinessLevel={readinessLevel}
-            weakestTags={weakestTags}
-            trendLast7Days={trendLast7Days}
+              confidenceEqDelta={confidenceEqDelta}
+              readinessLevel={readinessLevel}
+              weakestTags={weakestTags}
+              strongestTags={strongestTags}
+              avgDecisionSeconds={avgDecisionSeconds}
+              trendLast7Days={trendLast7Days}
             trendLast30Days={trendLast30Days}
             trendRange={trendRange}
             setTrendRange={setTrendRange}
@@ -623,7 +619,7 @@ function ScenarioCard({ s, href }: { s: ScenarioCardItem; href: string }) {
   const [hov, setHov] = useState(false)
   return (
     <div
-      onMouseEnter={() => !s.locked && setHov(true)}
+      onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
         padding: 28,
@@ -632,8 +628,7 @@ function ScenarioCard({ s, href }: { s: ScenarioCardItem; href: string }) {
         background: hov ? 'rgba(123,29,58,0.08)' : 'var(--bg-card)',
         boxShadow: hov ? '0 8px 32px rgba(123,29,58,0.1)' : '0 2px 12px rgba(0,0,0,0.04)',
         transition: 'all 0.25s',
-        opacity: s.locked ? 0.55 : 1,
-        cursor: s.locked ? 'not-allowed' : 'pointer',
+        cursor: 'pointer',
         transform: hov ? 'translateY(-3px)' : 'translateY(0)',
       }}
     >
@@ -667,7 +662,6 @@ function ScenarioCard({ s, href }: { s: ScenarioCardItem; href: string }) {
           <span style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, color: s.color, background: `${s.color}15`, padding: '3px 8px', borderRadius: 4 }}>
             {s.mode}
           </span>
-          {s.locked && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Complete previous first</span>}
         </div>
       </div>
 
@@ -689,38 +683,38 @@ function ScenarioCard({ s, href }: { s: ScenarioCardItem; href: string }) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.estimatedMinutes} min</span>
-        {!s.locked && (
-          <Link
-            href={href}
-            className="btn-primary"
-            style={{
-              fontSize: 12,
-              padding: '8px 18px',
-              background: hov ? `linear-gradient(135deg, ${s.color}, #c4537a)` : 'var(--grad-hero)',
-            }}
-          >
-            Begin
-          </Link>
-        )}
+        <Link
+          href={href}
+          className="btn-primary"
+          style={{
+            fontSize: 12,
+            padding: '8px 18px',
+            background: hov ? `linear-gradient(135deg, ${s.color}, #c4537a)` : 'var(--grad-hero)',
+          }}
+        >
+          Begin
+        </Link>
       </div>
     </div>
   )
 }
 
-function ProgressExperience(props: {
-  done: number
-  totalScenarios: number
-  totalCompletedRuns: number
-  currentStreakDays: number
-  bestStreakDays: number
-  conf: number
-  eq: number
-  avgRisk: number
-  confidenceEqDelta: number
-  readinessLevel: 'starting' | 'developing' | 'advanced'
-  weakestTags: string[]
-  trendLast7Days: TrendPoint[]
-  trendLast30Days: TrendPoint[]
+  function ProgressExperience(props: {
+    done: number
+    totalScenarios: number
+    totalCompletedRuns: number
+    currentStreakDays: number
+    bestStreakDays: number
+    conf: number
+    eq: number
+    avgRisk: number
+    confidenceEqDelta: number
+    readinessLevel: 'starting' | 'developing' | 'advanced'
+    weakestTags: string[]
+    strongestTags: string[]
+    avgDecisionSeconds: number
+    trendLast7Days: TrendPoint[]
+    trendLast30Days: TrendPoint[]
   trendRange: '7d' | '30d'
   setTrendRange: (range: '7d' | '30d') => void
   modeInsights: PerformanceInsight[]
@@ -749,31 +743,79 @@ function ProgressExperience(props: {
         <div style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 14 }}>
           Progress Snapshot
         </div>
-        <button
-          type="button"
-          className="btn-ghost"
-          style={{ fontSize: 12, padding: '6px 10px', marginBottom: 12 }}
-          onClick={() => {
-            const html = `
-              <html>
-                <head><title>SafePath Progress Report</title></head>
-                <body style="font-family: Arial, sans-serif; padding: 24px; color: #1a0a0f;">
-                  <h1>SafePath Progress Report</h1>
-                  <p>Generated on: ${new Date().toLocaleString()}</p>
-                  <h2>Overview</h2>
-                  <ul>
-                    <li>Completed scenarios: ${props.done}/${props.totalScenarios}</li>
-                    <li>Completed runs: ${props.totalCompletedRuns}</li>
-                    <li>Current streak: ${props.currentStreakDays} day(s)</li>
-                    <li>Best streak: ${props.bestStreakDays} day(s)</li>
-                    <li>Average confidence: ${props.conf}%</li>
-                    <li>Average EQ: ${props.eq}%</li>
-                    <li>Average risk: ${props.avgRisk}%</li>
-                    <li>Readiness: ${props.readinessLevel}</li>
-                  </ul>
-                </body>
-              </html>
-            `
+          <button
+            type="button"
+            className="btn-ghost"
+            style={{ fontSize: 12, padding: '6px 10px', marginBottom: 12 }}
+            onClick={() => {
+              const strengthsText = props.strongestTags.length ? props.strongestTags.join(', ') : '—'
+              const weaknessesText = props.weakestTags.length ? props.weakestTags.join(', ') : '—'
+              const responseTimeText = props.avgDecisionSeconds ? `${props.avgDecisionSeconds}s` : '—'
+              const certUrl = `${window.location.origin}/certificate`
+              const unlockedSkills = props.achievements.filter((a) => a.unlocked).map((a) => a.title)
+              const skillsHtml = unlockedSkills.length
+                ? `<ul>${unlockedSkills.map((s) => `<li>${s}</li>`).join('')}</ul>`
+                : '<p>—</p>'
+              const certPreviewHtml = props.certificateUnlocked
+                ? `
+                  <div style="margin-top:16px; border-radius:16px; padding:14px; background: linear-gradient(135deg, #ffe0ef 0%, #f5e7ff 60%, #e5f4ff 100%); border:1px solid #f0c7de;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                      <div>
+                        <div style="font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:#a04b73; font-weight:700;">Certificate Preview</div>
+                        <div style="font-size:18px; font-weight:800; color:#7b1d3a;">SafePath Achievement</div>
+                        <div style="font-size:12px; color:#6a3b58;">Official completion certificate</div>
+                      </div>
+                      <svg width="72" height="72" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <linearGradient id="ribbon" x1="0" x2="1" y1="0" y2="1">
+                            <stop offset="0" stop-color="#ff7faa"/>
+                            <stop offset="1" stop-color="#9b3060"/>
+                          </linearGradient>
+                        </defs>
+                        <circle cx="36" cy="30" r="16" fill="url(#ribbon)" />
+                        <circle cx="36" cy="30" r="10" fill="#fff1f7" />
+                        <path d="M28 44l-4 16 12-8 12 8-4-16" fill="url(#ribbon)"/>
+                      </svg>
+                    </div>
+                  </div>
+                `
+                : ''
+              const html = `
+                <html>
+                  <head>
+                    <title>SafePath Progress Report</title>
+                  </head>
+                  <body style="font-family: 'Times New Roman', serif; padding: 28px; color: #2b1430; background: #fff7fb;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px;">
+                      <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="width:12px; height:12px; border-radius:50%; background:#ff7faa; display:inline-block;"></span>
+                        <div style="font-size:18px; font-weight:800; letter-spacing:0.06em; color:#7b1d3a;">SafePath</div>
+                      </div>
+                      <div style="font-size:12px; color:#7f4f86;">Generated on: ${new Date().toLocaleString()}</div>
+                    </div>
+                    <h1 style="font-size:28px; margin: 6px 0 16px;">Progress Report</h1>
+                    <h2>Overview</h2>
+                    <ul>
+                      <li>Completed scenarios: ${props.done}/${props.totalScenarios}</li>
+                      <li>Completed runs: ${props.totalCompletedRuns}</li>
+                      <li>Current streak: ${props.currentStreakDays} day(s)</li>
+                      <li>Best streak: ${props.bestStreakDays} day(s)</li>
+                      <li>Average confidence: ${props.conf}%</li>
+                      <li>Average EQ: ${props.eq}%</li>
+                      <li>Average risk: ${props.avgRisk}%</li>
+                      <li>Readiness: ${props.readinessLevel}</li>
+                      <li>Avg response time: ${responseTimeText}</li>
+                    </ul>
+                    <h2>Strengths</h2>
+                    <p>${strengthsText}</p>
+                    <h2>Weaknesses</h2>
+                    <p>${weaknessesText}</p>
+                    <h2>Skills Achieved</h2>
+                    ${skillsHtml}
+                    ${props.certificateUnlocked ? `<h2>Certificate</h2><p><a href="${certUrl}" target="_blank" rel="noopener noreferrer">View Certificate</a></p>${certPreviewHtml}` : ''}
+                  </body>
+                </html>
+              `
             const win = window.open('', '_blank')
             if (!win) return
             win.document.write(html)

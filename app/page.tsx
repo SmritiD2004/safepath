@@ -307,15 +307,6 @@ export default function LandingPage() {
               </ul>
             </div>
             <div className="footer-col">
-              <h4 className="footer-col-title">Modes</h4>
-              <ul>
-                <li><Link href="/mode/simulation">Simulation</Link></li>
-                <li><Link href="/mode/puzzle">Puzzle</Link></li>
-                <li><Link href="/mode/strategy">Strategy</Link></li>
-                <li><Link href="/mode/story">Story</Link></li>
-              </ul>
-            </div>
-            <div className="footer-col">
               <h4 className="footer-col-title">Account</h4>
               <ul>
                 <li><Link href="/signup">Sign Up</Link></li>
@@ -324,15 +315,15 @@ export default function LandingPage() {
                 <li><Link href="/certificate">Certificate</Link></li>
               </ul>
             </div>
-            <div className="footer-col">
-              <h4 className="footer-col-title">About</h4>
-              <ul>
-                <li><a href="#">Our Mission</a></li>
-                <li><a href="#">Safety Research</a></li>
-                <li><a href="#">Privacy Policy</a></li>
-                <li><a href="#">Contact</a></li>
-              </ul>
-            </div>
+              <div className="footer-col">
+                <h4 className="footer-col-title">About</h4>
+                <ul>
+                  <li><Link href="/about">Our Mission</Link></li>
+                  <li><Link href="/safety-research">Safety Research</Link></li>
+                  <li><Link href="/privacy-policy">Privacy Policy</Link></li>
+                  <li><Link href="/contact">Contact</Link></li>
+                </ul>
+              </div>
           </div>
         </div>
 

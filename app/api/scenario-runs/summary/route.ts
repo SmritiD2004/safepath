@@ -132,6 +132,8 @@ export async function GET() {
         trendLast7Days: [] as TrendPoint[],
         trendLast30Days: [] as TrendPoint[],
         weakestTags: [] as string[],
+        strongestTags: [] as string[],
+        avgDecisionSeconds: 0,
         recommendedScenarioIds: [] as string[],
       })
     }
@@ -143,12 +145,17 @@ export async function GET() {
       },
       orderBy: { completedAt: 'desc' },
       select: {
+        id: true,
         scenarioId: true,
         finalConfidence: true,
         finalEq: true,
         finalRisk: true,
+        startedAt: true,
         completedAt: true,
         outcome: true,
+        _count: {
+          select: { choiceEvents: true },
+        },
       },
     })
 
@@ -227,6 +234,27 @@ export async function GET() {
       .sort((a, b) => a[1].total / a[1].count - b[1].total / b[1].count)
       .slice(0, 3)
       .map(([tag]) => tag)
+
+    const strongestTags = Array.from(tagStats.entries())
+      .filter(([, val]) => val.count > 0)
+      .sort((a, b) => b[1].total / b[1].count - a[1].total / a[1].count)
+      .slice(0, 3)
+      .map(([tag]) => tag)
+
+    let avgDecisionSeconds = 0
+    let decisionSamples = 0
+    for (const run of completedRuns) {
+      if (!run.completedAt || !run.startedAt) continue
+      const choices = run._count?.choiceEvents ?? 0
+      if (choices <= 0) continue
+      const perChoiceMs = (run.completedAt.getTime() - run.startedAt.getTime()) / choices
+      if (!Number.isFinite(perChoiceMs)) continue
+      avgDecisionSeconds += perChoiceMs
+      decisionSamples += 1
+    }
+    if (decisionSamples > 0) {
+      avgDecisionSeconds = Math.round((avgDecisionSeconds / decisionSamples) / 1000)
+    }
 
     const completedSet = new Set(uniqueScenarioIds)
     const recommendedScenarioIds = Object.values(SCENARIOS_MAP)
@@ -462,6 +490,8 @@ export async function GET() {
       trendLast30Days,
       weakestTags,
       recommendedScenarioIds,
+      strongestTags,
+      avgDecisionSeconds,
     })
   } catch {
     return NextResponse.json(
@@ -489,6 +519,8 @@ export async function GET() {
         trendLast7Days: [] as TrendPoint[],
         trendLast30Days: [] as TrendPoint[],
         weakestTags: [] as string[],
+        strongestTags: [] as string[],
+        avgDecisionSeconds: 0,
         recommendedScenarioIds: [] as string[],
       },
       { status: 200 }
