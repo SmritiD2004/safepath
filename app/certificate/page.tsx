@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -163,7 +163,7 @@ export default function CertificatePage() {
   const cert = data.certificate
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto', marginBottom: 12, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+      <div className="certificate-actions" style={{ maxWidth: 940, margin: '0 auto', marginBottom: 12, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <Link href="/dashboard" className="btn-ghost">Back</Link>
         <button type="button" className="btn-primary" onClick={() => window.print()}>
           Download / Print PDF
