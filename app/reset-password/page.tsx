@@ -2,12 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import StarBorder from '../components/StarBorder'
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const email = searchParams.get('email') || ''
   const token = searchParams.get('token') || ''
 

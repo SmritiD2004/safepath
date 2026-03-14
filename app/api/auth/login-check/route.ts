@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { isTestEmail } from '@/lib/testAccounts'
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,6 +14,13 @@ export async function POST(req: NextRequest) {
     })
 
     if (!user) return NextResponse.json({ exists: false, verified: false })
+    if (!user.emailVerified && isTestEmail(email)) {
+      await db.user.update({
+        where: { id: user.id },
+        data: { emailVerified: new Date() },
+      })
+      return NextResponse.json({ exists: true, verified: true })
+    }
     return NextResponse.json({ exists: true, verified: Boolean(user.emailVerified) })
   } catch {
     return NextResponse.json({ error: 'Could not check user.' }, { status: 500 })

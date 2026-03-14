@@ -3,6 +3,7 @@ import { hash } from 'bcryptjs'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { createVerificationToken, sendVerificationEmail } from '@/lib/verification'
+import { isTestEmail } from '@/lib/testAccounts'
 
 const registerSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -21,6 +22,8 @@ export async function POST(req: NextRequest) {
     }
 
     const email = parsed.data.email.toLowerCase().trim()
+    const isTest = isTestEmail(email)
+    const now = new Date()
     const existing = await db.user.findUnique({ where: { email } })
     let userWasCreated = false
 
@@ -37,6 +40,7 @@ export async function POST(req: NextRequest) {
           email,
           passwordHash,
           image: parsed.data.avatar,
+          emailVerified: isTest ? now : undefined,
         },
       })
       userWasCreated = true
@@ -47,7 +51,17 @@ export async function POST(req: NextRequest) {
           name: parsed.data.name.trim(),
           passwordHash,
           image: parsed.data.avatar,
+          emailVerified: existing.emailVerified ?? (isTest ? now : undefined),
         },
+      })
+    }
+
+    if (isTest) {
+      return NextResponse.json({
+        success: true,
+        requiresVerification: false,
+        emailSent: false,
+        userWasCreated,
       })
     }
 

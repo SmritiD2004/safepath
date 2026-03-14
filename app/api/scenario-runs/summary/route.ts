@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import SCENARIOS_MAP from '@/lib/scenarios'
 import { smoothedAverage } from '@/lib/scoring'
+import { ENTERPRISE_PACKAGES } from '@/lib/enterprise/packages'
 
 type TrendPoint = {
   date: string
@@ -135,7 +136,58 @@ export async function GET() {
         strongestTags: [] as string[],
         avgDecisionSeconds: 0,
         recommendedScenarioIds: [] as string[],
+        orgScenarioIds: [] as string[],
+        userIndustry: null,
       })
+    }
+
+    const normalizeIndustry = (industry: string | null | undefined) => {
+      if (!industry) return null
+      return industry === 'CUSTOM' ? null : industry
+    }
+
+    // Attempt to fetch the user's primary organization industry and packages
+    let userIndustry: string | null = null
+    let orgScenarioIds: string[] = []
+    try {
+      const membership = await db.orgMember.findFirst({
+        where: { userId },
+        include: { org: true },
+        orderBy: { joinedAt: 'asc' }, // Get the first org they joined as primary
+      })
+      if (membership?.org?.id) {
+        const packages = await db.orgScenarioPackage.findMany({
+          where: { orgId: membership.org.id },
+          select: { packageId: true },
+        })
+        if (packages.length > 0) {
+          const ids = new Set<string>()
+          for (const pkg of packages) {
+            const bundle = ENTERPRISE_PACKAGES[pkg.packageId]
+            if (!bundle) continue
+            for (const scenarioId of bundle.scenarioIds) ids.add(scenarioId)
+          }
+          orgScenarioIds = Array.from(ids)
+        } else if (membership?.org?.industry) {
+          userIndustry = normalizeIndustry(membership.org.industry)
+        }
+      }
+    } catch {
+      // Ignore errors if org membership fails or doesn't exist
+    }
+
+    if (!userIndustry) {
+      try {
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          select: { industry: true },
+        })
+        if (user?.industry) {
+          userIndustry = normalizeIndustry(user.industry)
+        }
+      } catch {
+        // Ignore if fetching user fails
+      }
     }
 
     const completedRuns = await db.scenarioRun.findMany({
@@ -485,6 +537,7 @@ export async function GET() {
       categoryInsights,
       recentRuns,
       scenarioHeatmap,
+      userIndustry,
       improvementGoals,
       trendLast7Days,
       trendLast30Days,
@@ -492,6 +545,7 @@ export async function GET() {
       recommendedScenarioIds,
       strongestTags,
       avgDecisionSeconds,
+      orgScenarioIds,
     })
   } catch {
     return NextResponse.json(
@@ -515,6 +569,7 @@ export async function GET() {
         categoryInsights: [] as PerformanceInsight[],
         recentRuns: [] as RecentRun[],
         scenarioHeatmap: [] as ScenarioHeatmapCell[],
+        userIndustry: null,
         improvementGoals: [] as ImprovementGoal[],
         trendLast7Days: [] as TrendPoint[],
         trendLast30Days: [] as TrendPoint[],
@@ -522,6 +577,7 @@ export async function GET() {
         strongestTags: [] as string[],
         avgDecisionSeconds: 0,
         recommendedScenarioIds: [] as string[],
+        orgScenarioIds: [] as string[],
       },
       { status: 200 }
     )

@@ -152,15 +152,32 @@ export default function DashboardPage() {
   const [practicedTips, setPracticedTips] = useState<string[]>([])
   const [tipExpandedId, setTipExpandedId] = useState<string | null>(null)
   const [tipSaving, setTipSaving] = useState(false)
+  const [userIndustry, setUserIndustry] = useState<string | null>(null)
+  const [orgScenarioIds, setOrgScenarioIds] = useState<string[]>([])
 
   const isGuest = authStatus === 'unauthenticated'
   const isAdmin = session?.user?.role === 'ADMIN'
+  const isOrgAdmin = session?.user?.role === 'ORG_ADMIN' || session?.user?.role === 'MANAGER'
   const first = session?.user?.name?.split(' ')[0] ?? 'Guest'
 
   useEffect(() => {
     if (authStatus !== 'authenticated') return
-    if (isAdmin) router.replace('/admin/users')
-  }, [authStatus, isAdmin, router])
+    const role = session?.user?.role
+    if (role === 'ADMIN') {
+      router.replace('/admin/users')
+      return
+    }
+    if (role === 'ORG_ADMIN' || role === 'MANAGER') {
+      fetch('/api/org/me')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.orgId) {
+            router.replace(`/org/${data.orgId}/dashboard`)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [authStatus, router, session?.user?.role])
 
   useEffect(() => {
     if (isGuest) return
@@ -196,6 +213,8 @@ export default function DashboardPage() {
         setCertificateUnlocked(Boolean(data.certificateUnlocked))
         setCertificateProgress(Number(data.certificateProgress) || 0)
         setPracticedTips(Array.isArray(data.practicedTipIds) ? data.practicedTipIds : [])
+        setUserIndustry(data.userIndustry || null)
+        setOrgScenarioIds(Array.isArray(data.orgScenarioIds) ? data.orgScenarioIds : [])
       })
       .catch(() => {})
 
@@ -225,7 +244,19 @@ export default function DashboardPage() {
   }, [isGuest])
 
   const scenarios: ScenarioCardItem[] = useMemo(() => {
-    return Object.values(SCENARIOS_MAP).map((s) => ({
+    return Object.values(SCENARIOS_MAP)
+      .filter((s) => {
+        if (orgScenarioIds.length > 0) {
+          return orgScenarioIds.includes(s.id)
+        }
+        const hasIndustryTag = s.tags.some(t => t.startsWith('industry-'))
+        if (userIndustry) {
+          const targetTag = `industry-${userIndustry}`
+          return s.tags.includes(targetTag)
+        }
+        return !hasIndustryTag
+      })
+      .map((s) => ({
       id: s.id,
       title: s.title,
       category: s.category,
@@ -240,7 +271,7 @@ export default function DashboardPage() {
       backgroundMood: s.backgroundMood,
       mode: s.mode,
     }))
-  }, [])
+  }, [orgScenarioIds, userIndustry])
 
   const availableTags = useMemo(() => {
     const allTags = new Set<string>()
@@ -314,10 +345,10 @@ export default function DashboardPage() {
     )
   }
 
-  if (isAdmin) {
+  if (isAdmin || isOrgAdmin) {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>Redirecting to admin...</span>
+        <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>Redirecting...</span>
       </div>
     )
   }
