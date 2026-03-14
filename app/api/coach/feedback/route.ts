@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCoachFeedback } from '@/lib/ai/coach'
+import { buildEnterpriseSystemPrompt } from '@/lib/ai/industryPrompts'
 import { rateLimitCoach, rateLimitResponse } from '@/lib/middleware/rateLimit'
 
 export async function POST(req: NextRequest) {
@@ -15,7 +16,14 @@ export async function POST(req: NextRequest) {
       choiceText = '',
       playerHistory = [],
       riskLevel = 50,
+      industry,
+      jobRole,
+      complianceFramework,
     } = body ?? {}
+
+    const systemPromptOverride = industry
+      ? buildEnterpriseSystemPrompt(String(industry), String(jobRole ?? 'Employee'), complianceFramework)
+      : undefined
 
     const feedback = await getCoachFeedback({
       scenarioId: String(scenarioId),
@@ -23,6 +31,7 @@ export async function POST(req: NextRequest) {
       choiceText: String(choiceText),
       playerHistory: Array.isArray(playerHistory) ? playerHistory.map(String) : [],
       riskLevel: Number(riskLevel) || 50,
+      systemPromptOverride,
     })
 
     return NextResponse.json({

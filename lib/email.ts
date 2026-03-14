@@ -37,3 +37,23 @@ export async function sendEmail(params: SendEmailParams): Promise<{ delivered: b
   const previewUrl = testUrl || undefined
   return { delivered: true, previewUrl }
 }
+
+export async function sendInvitationEmail(
+  to: string,
+  joinUrl: string,
+  orgLabel: string
+): Promise<{ delivered: boolean; previewUrl?: string }> {
+  const subject = `You're invited to join ${orgLabel} on SafePath`
+  const text = `You have been invited to join ${orgLabel} on SafePath. Use this link to join: ${joinUrl}`
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937;">
+      <h2>You're invited to join ${orgLabel}</h2>
+      <p>You have been invited to join ${orgLabel} on SafePath.</p>
+      <p><a href="${joinUrl}" style="color: #2563eb;">Join your team</a></p>
+      <p>If the button does not work, copy this link into your browser:</p>
+      <p>${joinUrl}</p>
+    </div>
+  `
+
+  return sendEmail({ to, subject, text, html })
+}

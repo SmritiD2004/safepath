@@ -133,6 +133,7 @@ export default function LandingPage() {
             <a href="#knowledge">Safety Knowledge</a>
             <a href="#squad">Squad</a>
             <a href="#loop">Game Loop</a>
+            <Link href="/enterprise">Enterprise</Link>
             <Link href="/dashboard">Dashboard</Link>
           </nav>
         </div>
@@ -140,6 +141,10 @@ export default function LandingPage() {
 
       {/* ── HERO (uses Hero component) ── */}
       <Hero />
+
+      {/* â”€â”€ START HERE â”€â”€ */}
+
+      {/* â”€â”€ NAVIGATION MAP â”€â”€ */}
 
       {/* ── MISSIONS ── */}
       <section id="missions" className="section">
@@ -345,8 +350,7 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      <style>{`
-        /* ══════════════════════════════════════════
+      <style>{`/* ══════════════════════════════════════════
            FOOTER
         ══════════════════════════════════════════ */
         .site-footer {
@@ -619,3 +623,5 @@ export default function LandingPage() {
     </main>
   )
 }
+
+

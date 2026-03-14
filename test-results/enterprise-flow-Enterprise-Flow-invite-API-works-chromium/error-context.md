@@ -1,0 +1,408 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - navigation [ref=e4]:
+        - link "SafePath" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: SafePath
+        - generic [ref=e7]:
+          - generic [ref=e8]:
+            - text: Hi,
+            - strong [ref=e9]: Org
+          - link "Org avatar" [ref=e10] [cursor=pointer]:
+            - /url: /settings
+            - img "Org avatar" [ref=e12]
+          - button "Log Out" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e17]: Your Training Hub
+          - heading "Ready to train, Org?" [level=1] [ref=e18]:
+            - generic [ref=e19]: Ready to train, Org?
+          - paragraph [ref=e20]: Each scenario builds real cognitive preparedness.
+          - generic [ref=e21]:
+            - button "Explore Scenarios" [ref=e22] [cursor=pointer]
+            - button "View Progress" [ref=e23] [cursor=pointer]
+            - button "Daily Tips" [ref=e24] [cursor=pointer]
+            - link "Role-Play Mode" [ref=e25] [cursor=pointer]:
+              - /url: /role-play
+        - generic [ref=e26]:
+          - generic [ref=e27]:
+            - generic [ref=e29]: Scenarios Done
+            - generic [ref=e30]: 0/ 22
+          - generic [ref=e32]:
+            - generic [ref=e34]: Confidence Score
+            - generic [ref=e35]: 0%
+          - generic [ref=e37]:
+            - generic [ref=e39]: EQ Score
+            - generic [ref=e40]: 0%
+          - generic [ref=e42]:
+            - generic [ref=e44]: Current Streak
+            - generic [ref=e45]: 0 days
+        - generic [ref=e47]:
+          - button "scenarios" [ref=e48] [cursor=pointer]
+          - button "progress" [ref=e49] [cursor=pointer]
+          - button "tips" [ref=e50] [cursor=pointer]
+        - generic [ref=e52]:
+          - button "All" [ref=e53] [cursor=pointer]
+          - button "Simulation" [ref=e54] [cursor=pointer]
+          - button "Puzzle" [ref=e55] [cursor=pointer]
+          - button "Role-Play" [ref=e56] [cursor=pointer]
+          - button "Strategy" [ref=e57] [cursor=pointer]
+          - button "Story" [ref=e58] [cursor=pointer]
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - text: Intensity
+            - combobox "Intensity" [ref=e61]:
+              - option "All" [selected]
+              - option "Low"
+              - option "Medium"
+              - option "High"
+          - generic [ref=e62]:
+            - text: Tag
+            - combobox "Tag" [ref=e63]:
+              - option "all" [selected]
+              - option "accommodation"
+              - option "boundary-setting"
+              - option "bystander-support"
+              - option "campus-safety"
+              - option "digital-security"
+              - option "documentation"
+              - option "home-safety"
+              - option "online-safety"
+              - option "posh"
+              - option "public-events"
+              - option "public-spaces"
+              - option "public-transport"
+              - option "puzzle"
+              - option "role-play"
+              - option "scam-detection"
+              - option "simulation"
+              - option "social-situations"
+              - option "story"
+              - option "strategy"
+              - option "travel"
+              - option "verification"
+              - option "work-commute"
+              - option "workplace"
+          - generic [ref=e64]:
+            - text: Max Minutes
+            - spinbutton "Max Minutes" [ref=e65]: "20"
+          - generic [ref=e66]: Showing 22 / 22
+        - generic [ref=e67]:
+          - generic [ref=e68] [cursor=pointer]:
+            - generic [ref=e70]: 🚌
+            - generic [ref=e73]: Simulation
+            - generic [ref=e74]: Public Transport
+            - heading "The Crowded Bus" [level=3] [ref=e75]
+            - paragraph [ref=e76]: It's 8:45 AM. The bus is packed — every handle taken, bodies pressed close. You have 20 minutes unti...
+            - generic [ref=e77]:
+              - generic [ref=e78]: medium
+              - generic [ref=e79]: public-transport
+              - generic [ref=e80]: bystander-support
+            - generic [ref=e81]:
+              - generic [ref=e82]: 12 min
+              - link "Begin" [ref=e83]:
+                - /url: /mode/simulation/bus-harassment
+          - generic [ref=e84] [cursor=pointer]:
+            - generic [ref=e86]: 💼
+            - generic [ref=e89]: Simulation
+            - generic [ref=e90]: Workplace
+            - heading "The Senior Colleague" [level=3] [ref=e91]
+            - paragraph [ref=e92]: You've been at this company for 3 months. Rohan, your team lead — 10 years your senior — has been gr...
+            - generic [ref=e93]:
+              - generic [ref=e94]: high
+              - generic [ref=e95]: workplace
+              - generic [ref=e96]: posh
+            - generic [ref=e97]:
+              - generic [ref=e98]: 15 min
+              - link "Begin" [ref=e99]:
+                - /url: /mode/simulation/workplace-boundary
+          - generic [ref=e100] [cursor=pointer]:
+            - generic [ref=e102]: 📱
+            - generic [ref=e105]: Puzzle
+            - generic [ref=e106]: Online Safety
+            - heading "The DM Campaign" [level=3] [ref=e107]
+            - paragraph [ref=e108]: You received a DM from someone who says they're a talent scout for a fashion brand. They found your ...
+            - generic [ref=e109]:
+              - generic [ref=e110]: medium
+              - generic [ref=e111]: online-safety
+              - generic [ref=e112]: scam-detection
+            - generic [ref=e113]:
+              - generic [ref=e114]: 10 min
+              - link "Begin" [ref=e115]:
+                - /url: /mode/puzzle/online-manipulation
+          - generic [ref=e116] [cursor=pointer]:
+            - generic [ref=e118]: 🏢
+            - generic [ref=e121]: Simulation
+            - generic [ref=e122]: Public Spaces
+            - heading "The Empty Elevator" [level=3] [ref=e123]
+            - paragraph [ref=e124]: You enter a nearly empty office building lift late in the evening....
+            - generic [ref=e125]:
+              - generic [ref=e126]: medium
+              - generic [ref=e127]: public-spaces
+              - generic [ref=e128]: simulation
+            - generic [ref=e129]:
+              - generic [ref=e130]: 7 min
+              - link "Begin" [ref=e131]:
+                - /url: /mode/simulation/the-empty-elevator
+          - generic [ref=e132] [cursor=pointer]:
+            - generic [ref=e134]: 🏫
+            - generic [ref=e137]: Strategy
+            - generic [ref=e138]: Campus Safety
+            - heading "Hostel Gate After Curfew" [level=3] [ref=e139]
+            - paragraph [ref=e140]: You return late and the hostel lane is quieter than usual....
+            - generic [ref=e141]:
+              - generic [ref=e142]: medium
+              - generic [ref=e143]: campus-safety
+              - generic [ref=e144]: strategy
+            - generic [ref=e145]:
+              - generic [ref=e146]: 8 min
+              - link "Begin" [ref=e147]:
+                - /url: /mode/strategy/hostel-gate-after-curfew
+          - generic [ref=e148] [cursor=pointer]:
+            - generic [ref=e150]: 🎪
+            - generic [ref=e153]: Simulation
+            - generic [ref=e154]: Public Events
+            - heading "Festival Crowd Pressure" [level=3] [ref=e155]
+            - paragraph [ref=e156]: You are in a dense festival crowd near a temporary exit lane....
+            - generic [ref=e157]:
+              - generic [ref=e158]: medium
+              - generic [ref=e159]: public-events
+              - generic [ref=e160]: simulation
+            - generic [ref=e161]:
+              - generic [ref=e162]: 9 min
+              - link "Begin" [ref=e163]:
+                - /url: /mode/simulation/festival-crowd-pressure
+          - generic [ref=e164] [cursor=pointer]:
+            - generic [ref=e166]: 🏋️
+            - generic [ref=e169]: Role-Play
+            - generic [ref=e170]: Social Situations
+            - heading "Gym Trainer Boundaries" [level=3] [ref=e171]
+            - paragraph [ref=e172]: During training, an instructor gives unsolicited personal comments....
+            - generic [ref=e173]:
+              - generic [ref=e174]: medium
+              - generic [ref=e175]: social-situations
+              - generic [ref=e176]: role-play
+            - generic [ref=e177]:
+              - generic [ref=e178]: 7 min
+              - link "Begin" [ref=e179]:
+                - /url: /mode/role-play/gym-trainer-boundaries
+          - generic [ref=e180] [cursor=pointer]:
+            - generic [ref=e182]: 🏠
+            - generic [ref=e185]: Story
+            - generic [ref=e186]: Accommodation
+            - heading "PG Owner Pressure" [level=3] [ref=e187]
+            - paragraph [ref=e188]: A paying-guest owner makes repeated intrusive personal questions....
+            - generic [ref=e189]:
+              - generic [ref=e190]: medium
+              - generic [ref=e191]: accommodation
+              - generic [ref=e192]: story
+            - generic [ref=e193]:
+              - generic [ref=e194]: 8 min
+              - link "Begin" [ref=e195]:
+                - /url: /mode/story/pg-owner-pressure
+          - generic [ref=e196] [cursor=pointer]:
+            - generic [ref=e198]: 📞
+            - generic [ref=e201]: Puzzle
+            - generic [ref=e202]: Online Safety
+            - heading "Interview Scam Call" [level=3] [ref=e203]
+            - paragraph [ref=e204]: You get a call claiming urgent interview processing fee payment....
+            - generic [ref=e205]:
+              - generic [ref=e206]: medium
+              - generic [ref=e207]: online-safety
+              - generic [ref=e208]: puzzle
+            - generic [ref=e209]:
+              - generic [ref=e210]: 6 min
+              - link "Begin" [ref=e211]:
+                - /url: /mode/puzzle/interview-scam-call
+          - generic [ref=e212] [cursor=pointer]:
+            - generic [ref=e214]: 📶
+            - generic [ref=e217]: Puzzle
+            - generic [ref=e218]: Digital Security
+            - heading "Cafe Wi-Fi Trap" [level=3] [ref=e219]
+            - paragraph [ref=e220]: A free Wi-Fi portal asks extra permissions and OTP verification....
+            - generic [ref=e221]:
+              - generic [ref=e222]: medium
+              - generic [ref=e223]: digital-security
+              - generic [ref=e224]: puzzle
+            - generic [ref=e225]:
+              - generic [ref=e226]: 6 min
+              - link "Begin" [ref=e227]:
+                - /url: /mode/puzzle/cafe-wifi-trap
+          - generic [ref=e228] [cursor=pointer]:
+            - generic [ref=e230]: 🎉
+            - generic [ref=e233]: Strategy
+            - generic [ref=e234]: Social Situations
+            - heading "Friend’s Party Exit Plan" [level=3] [ref=e235]
+            - paragraph [ref=e236]: At a house party, your ride cancels and the group insists you stay late....
+            - generic [ref=e237]:
+              - generic [ref=e238]: medium
+              - generic [ref=e239]: social-situations
+              - generic [ref=e240]: strategy
+            - generic [ref=e241]:
+              - generic [ref=e242]: 7 min
+              - link "Begin" [ref=e243]:
+                - /url: /mode/strategy/friends-party-exit-plan
+          - generic [ref=e244] [cursor=pointer]:
+            - generic [ref=e246]: 🛍️
+            - generic [ref=e249]: Simulation
+            - generic [ref=e250]: Travel
+            - heading "Market Lane Shortcut" [level=3] [ref=e251]
+            - paragraph [ref=e252]: A vendor suggests a shortcut through a less lit lane....
+            - generic [ref=e253]:
+              - generic [ref=e254]: medium
+              - generic [ref=e255]: travel
+              - generic [ref=e256]: simulation
+            - generic [ref=e257]:
+              - generic [ref=e258]: 7 min
+              - link "Begin" [ref=e259]:
+                - /url: /mode/simulation/market-lane-shortcut
+          - generic [ref=e260] [cursor=pointer]:
+            - generic [ref=e262]: 🚐
+            - generic [ref=e265]: Strategy
+            - generic [ref=e266]: Work Commute
+            - heading "Office Cab Group Drop" [level=3] [ref=e267]
+            - paragraph [ref=e268]: You are last in a shared office cab and route changes unexpectedly....
+            - generic [ref=e269]:
+              - generic [ref=e270]: medium
+              - generic [ref=e271]: work-commute
+              - generic [ref=e272]: strategy
+            - generic [ref=e273]:
+              - generic [ref=e274]: 8 min
+              - link "Begin" [ref=e275]:
+                - /url: /mode/strategy/office-cab-group-drop
+          - generic [ref=e276] [cursor=pointer]:
+            - generic [ref=e278]: 💻
+            - generic [ref=e281]: Role-Play
+            - generic [ref=e282]: Workplace
+            - heading "Co-working Space Stranger" [level=3] [ref=e283]
+            - paragraph [ref=e284]: A stranger repeatedly interrupts your table despite polite refusal....
+            - generic [ref=e285]:
+              - generic [ref=e286]: medium
+              - generic [ref=e287]: workplace
+              - generic [ref=e288]: role-play
+            - generic [ref=e289]:
+              - generic [ref=e290]: 6 min
+              - link "Begin" [ref=e291]:
+                - /url: /mode/role-play/co-working-space-stranger
+          - generic [ref=e292] [cursor=pointer]:
+            - generic [ref=e294]: 📦
+            - generic [ref=e297]: Simulation
+            - generic [ref=e298]: Home Safety
+            - heading "Apartment Delivery Check" [level=3] [ref=e299]
+            - paragraph [ref=e300]: Someone claims to deliver a parcel but the app shows no order....
+            - generic [ref=e301]:
+              - generic [ref=e302]: medium
+              - generic [ref=e303]: home-safety
+              - generic [ref=e304]: simulation
+            - generic [ref=e305]:
+              - generic [ref=e306]: 6 min
+              - link "Begin" [ref=e307]:
+                - /url: /mode/simulation/apartment-delivery-check
+          - generic [ref=e308] [cursor=pointer]:
+            - generic [ref=e310]: 🧩
+            - generic [ref=e313]: Story
+            - generic [ref=e314]: Online Safety
+            - heading "Classroom Group Chat Leak" [level=3] [ref=e315]
+            - paragraph [ref=e316]: A private screenshot from your class group appears on another page....
+            - generic [ref=e317]:
+              - generic [ref=e318]: medium
+              - generic [ref=e319]: online-safety
+              - generic [ref=e320]: story
+            - generic [ref=e321]:
+              - generic [ref=e322]: 7 min
+              - link "Begin" [ref=e323]:
+                - /url: /mode/story/classroom-group-chat-leak
+          - generic [ref=e324] [cursor=pointer]:
+            - generic [ref=e326]: 🚉
+            - generic [ref=e329]: Simulation
+            - generic [ref=e330]: Public Transport
+            - heading "Railway Platform Delay" [level=3] [ref=e331]
+            - paragraph [ref=e332]: Your train is delayed and platform footfall drops late at night....
+            - generic [ref=e333]:
+              - generic [ref=e334]: medium
+              - generic [ref=e335]: public-transport
+              - generic [ref=e336]: simulation
+            - generic [ref=e337]:
+              - generic [ref=e338]: 8 min
+              - link "Begin" [ref=e339]:
+                - /url: /mode/simulation/railway-platform-delay
+          - generic [ref=e340] [cursor=pointer]:
+            - generic [ref=e342]: 📚
+            - generic [ref=e345]: Role-Play
+            - generic [ref=e346]: Workplace
+            - heading "Internship Mentor Messages" [level=3] [ref=e347]
+            - paragraph [ref=e348]: A mentor starts messaging late night with personal comments....
+            - generic [ref=e349]:
+              - generic [ref=e350]: medium
+              - generic [ref=e351]: workplace
+              - generic [ref=e352]: role-play
+            - generic [ref=e353]:
+              - generic [ref=e354]: 8 min
+              - link "Begin" [ref=e355]:
+                - /url: /mode/role-play/internship-mentor-messages
+          - generic [ref=e356] [cursor=pointer]:
+            - generic [ref=e358]: 🚕
+            - generic [ref=e361]: Role-Play
+            - generic [ref=e362]: Travel
+            - heading "Cab Co-Passenger Pressure" [level=3] [ref=e363]
+            - paragraph [ref=e364]: A co-passenger in a shared cab keeps asking personal details and drop location....
+            - generic [ref=e365]:
+              - generic [ref=e366]: medium
+              - generic [ref=e367]: travel
+              - generic [ref=e368]: role-play
+            - generic [ref=e369]:
+              - generic [ref=e370]: 7 min
+              - link "Begin" [ref=e371]:
+                - /url: /mode/role-play/cab-co-passenger-pressure
+          - generic [ref=e372] [cursor=pointer]:
+            - generic [ref=e374]: 🎓
+            - generic [ref=e377]: Role-Play
+            - generic [ref=e378]: Campus Safety
+            - heading "Campus Event Follow-up" [level=3] [ref=e379]
+            - paragraph [ref=e380]: After a campus event, someone repeatedly messages and pushes for a private meetup....
+            - generic [ref=e381]:
+              - generic [ref=e382]: medium
+              - generic [ref=e383]: campus-safety
+              - generic [ref=e384]: role-play
+            - generic [ref=e385]:
+              - generic [ref=e386]: 7 min
+              - link "Begin" [ref=e387]:
+                - /url: /mode/role-play/campus-event-follow-up
+          - generic [ref=e388] [cursor=pointer]:
+            - generic [ref=e390]: 🚖
+            - generic [ref=e393]: Strategy
+            - generic [ref=e394]: Travel
+            - heading "Ride-Share OTP Trick" [level=3] [ref=e395]
+            - paragraph [ref=e396]: A person claims your booked ride is delayed and asks for your trip OTP to "reassign quickly."...
+            - generic [ref=e397]:
+              - generic [ref=e398]: medium
+              - generic [ref=e399]: travel
+              - generic [ref=e400]: strategy
+            - generic [ref=e401]:
+              - generic [ref=e402]: 8 min
+              - link "Begin" [ref=e403]:
+                - /url: /mode/strategy/ride-share-otp-trick
+          - generic [ref=e404] [cursor=pointer]:
+            - generic [ref=e406]: 📚
+            - generic [ref=e409]: Simulation
+            - generic [ref=e410]: Campus Safety
+            - heading "Library Study Corner" [level=3] [ref=e411]
+            - paragraph [ref=e412]: You are studying in a quiet library wing when someone repeatedly tries to sit too close....
+            - generic [ref=e413]:
+              - generic [ref=e414]: medium
+              - generic [ref=e415]: campus-safety
+              - generic [ref=e416]: simulation
+            - generic [ref=e417]:
+              - generic [ref=e418]: 7 min
+              - link "Begin" [ref=e419]:
+                - /url: /mode/simulation/library-study-corner
+    - button "Toggle theme" [ref=e420] [cursor=pointer]: "Theme: Light"
+    - button "Open SafePath chat widget" [ref=e422] [cursor=pointer]: CHAT ASSIST
+  - button "Open Next.js Dev Tools" [ref=e428] [cursor=pointer]:
+    - img [ref=e429]
+  - alert [ref=e432]
+```
