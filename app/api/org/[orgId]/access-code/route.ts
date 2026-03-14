@@ -7,8 +7,9 @@ async function requireOrgAdmin(userId: string, orgId: string) {
   const membership = await db.orgMember.findUnique({
     where: { userId_orgId: { userId, orgId } },
   })
-  const allowed = ['MANAGER', 'ORG_ADMIN', 'ADMIN'] as const
-  if (!membership || !allowed.includes(membership.orgRole)) {
+ const allowed: string[] = ['MANAGER', 'ORG_ADMIN', 'ADMIN']
+
+if (!membership || !allowed.includes(membership.orgRole)) {
     return false
   }
   return true

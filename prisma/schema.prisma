@@ -262,6 +262,7 @@ model Organisation {
   packages      OrgScenarioPackage[]
   reports       ComplianceReport[]
   invitations   OrgInvitation[]
+
 }
 
 model Department {
