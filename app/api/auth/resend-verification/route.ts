@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createVerificationToken, sendVerificationEmail } from '@/lib/verification'
+import { isTestEmail } from '@/lib/testAccounts'
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +16,14 @@ export async function POST(req: NextRequest) {
 
     if (!user) return NextResponse.json({ success: true })
     if (user.emailVerified) return NextResponse.json({ success: true, alreadyVerified: true })
+
+    if (isTestEmail(email)) {
+      await db.user.update({
+        where: { id: user.id },
+        data: { emailVerified: new Date() },
+      })
+      return NextResponse.json({ success: true, alreadyVerified: true })
+    }
 
     const token = await createVerificationToken(email)
     const delivery = await sendVerificationEmail(email, token)

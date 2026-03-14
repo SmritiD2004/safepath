@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { deriveRunState } from '@/lib/scenario-run'
 
 const ABANDON_AFTER_MS = 6 * 60 * 60 * 1000 // 6 hours
 
-export async function POST(_req: NextRequest) {
+export async function POST() {
   try {
     const session = await auth()
     const userId = session?.user?.id

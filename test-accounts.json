@@ -1,0 +1,12 @@
+{
+  "password": "Password123!",
+  "orgId": "cmmpt53wb0001bceg70xuvzm0",
+  "accessCode": "SP-VCD9G-LHKH6",
+  "accounts": {
+    "platformAdmin": "platform.admin@test.local",
+    "orgAdmin": "org.admin@test.local",
+    "proSolo": "pro.solo@test.local",
+    "proOrg": "pro.org@test.local",
+    "individual": "individual.safety@test.local"
+  }
+}

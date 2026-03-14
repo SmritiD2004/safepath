@@ -1,0 +1,580 @@
+﻿SafePath
+Enterprise Training Platform
+Complete Implementation Guide
+Every file, every change, every migration â€” nothing skipped.
+0. The Strategy: What Exactly Changes
+SafePath today is a single-tenant consumer app â€” one user, their scenarios, their certificate. The enterprise pivot adds a multi-tenant layer on top of the existing engine without rewriting it. Your five game modes, ScenarioCore, scoring engine, AI coach, and certificate system all stay as-is. What gets added sits around them.
+Core principle: the enterprise layer is a wrapper, not a replacement. All existing user-facing features continue working. New enterprise features are additive.
+What stays unchanged
+What gets added
+ScenarioCore + all 5 game modes
+Organisation & Department models in Prisma
+lib/scoring.ts
+Industry scenario packages in lib/
+lib/ai/chatbot.ts + roleplay.ts
+AI coach industry context switching
+UserCertificate model
+Compliance report generation (CSV/PDF)
+Admin console /admin/*
+Manager dashboard /org/[orgId]/dashboard
+Auth.js + Prisma adapter
+MANAGER and ORG_ADMIN roles in UserRole enum
+All existing API routes
+New /api/org/* route group
+1. Prisma Schema Changes
+This is the foundation. All other changes depend on these models being in place first. Run migrations after every schema block below.
+1.1  Extend UserRole enum
+File: prisma/schema.prisma
+// BEFORE
+enum UserRole {
+  USER
+  ADMIN
+}
+// AFTER
+enum UserRole {
+  USER
+  ADMIN
+  MANAGER      // department/team manager â€” sees team analytics
+  ORG_ADMIN    // company-level admin â€” manages whole org
+}
+1.2  Add Industry enum
+enum Industry {
+  CORPORATE_IT
+  MANUFACTURING
+  HEALTHCARE
+  BANKING_FINANCE
+  RETAIL
+  EDUCATION
+  CUSTOM
+}
+1.3  Add Organisation model
+model Organisation {
+  id            String       @id @default(cuid())
+  name          String
+  industry      Industry
+  logoUrl       String?
+  licenseType   LicenseType  @default(PER_SEAT)
+  seatLimit     Int          @default(50)
+  activatedAt   DateTime     @default(now())
+  expiresAt     DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  departments   Department[]
+  members       OrgMember[]
+  packages      OrgScenarioPackage[]
+  reports       ComplianceReport[]
+}
+1.4  Add LicenseType enum
+enum LicenseType {
+  PER_SEAT      // â‚¹300-800 / employee / year
+  ENTERPRISE    // flat annual â‚¹5-20 lakh
+  TRIAL         // 30-day free trial
+}
+1.5  Add Department model
+model Department {
+  id            String       @id @default(cuid())
+  orgId         String
+  name          String
+  riskProfile   String?      // e.g. 'high-machinery', 'phishing-prone'
+  org           Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members       OrgMember[]
+  @@index([orgId])
+}
+1.6  Add OrgMember model  (links User â†” Organisation)
+model OrgMember {
+  id            String       @id @default(cuid())
+  userId        String
+  orgId         String
+  deptId        String?
+  jobRole       String?      // 'Machine Operator', 'ICU Nurse', 'Loan Officer'
+  orgRole       UserRole     @default(USER)
+  joinedAt      DateTime     @default(now())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org           Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  dept          Department?  @relation(fields: [deptId], references: [id], onDelete: SetNull)
+  @@unique([userId, orgId])
+  @@index([orgId])
+  @@index([deptId])
+}
+1.7  Add OrgScenarioPackage  (which scenario packs an org licensed)
+model OrgScenarioPackage {
+  id            String       @id @default(cuid())
+  orgId         String
+  packageId     String       // matches key in lib/enterprise/packages.ts
+  enabledAt     DateTime     @default(now())
+  org           Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  @@unique([orgId, packageId])
+}
+1.8  Add ComplianceReport
+model ComplianceReport {
+  id            String       @id @default(cuid())
+  orgId         String
+  generatedAt   DateTime     @default(now())
+  period        String       // '2025-Q1', '2025-01', 'custom'
+  csvUrl        String?      // stored in /public or S3
+  org           Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  @@index([orgId, generatedAt])
+}
+1.9  Extend User model with orgId shortcut
+// Add to existing User model:
+  orgMemberships OrgMember[]
+After all schema changes: run npm run prisma:migrate && npm run prisma:generate
+2. Industry Scenario Packages  (lib/enterprise/)
+Your existing lib/scenarios.ts exports a flat Record<string, Scenario>. Enterprise adds a package layer on top â€” a curated list of scenario IDs grouped by industry and training topic. Scenarios themselves remain in lib/scenarios.ts.
+2.1  Create lib/enterprise/packages.ts
+This file defines which scenarios belong to which industry package. It references existing scenario IDs from lib/scenarios.ts AND new ones you add.
+// lib/enterprise/packages.ts
+export interface ScenarioPackage {
+  id:          string
+  name:        string
+  industry:    string          // matches Industry enum value
+  description: string
+  icon:        string
+  color:       string
+  scenarioIds: string[]        // IDs from lib/scenarios.ts
+  complianceFramework?: string // e.g. 'POSH', 'OSHA', 'HIPAA'
+}
+export const ENTERPRISE_PACKAGES: Record<string, ScenarioPackage> = {
+  'corporate-harassment': {
+    id: 'corporate-harassment',
+    name: 'Workplace Harassment Prevention',
+    industry: 'CORPORATE_IT',
+    description: 'POSH-compliant harassment awareness for IT teams.',
+    icon: 'ðŸ’¼', color: '#1565C0',
+    scenarioIds: ['workplace-harassment-it', 'ethical-decision-it',
+                  'conflict-resolution', 'corporate-compliance'],
+    complianceFramework: 'POSH Act 2013',
+  },
+  'manufacturing-safety': {
+    id: 'manufacturing-safety',
+    name: 'Machine Safety & Accident Prevention',
+    industry: 'MANUFACTURING',
+    description: 'Machine malfunction, chemical hazards, evacuation drills.',
+    icon: 'ðŸ­', color: '#E65100',
+    scenarioIds: ['machine-malfunction', 'chemical-spill-response',
+                  'emergency-evacuation', 'ppe-compliance'],
+    complianceFramework: 'Factories Act 1948',
+  },
+  'healthcare-critical': {
+    id: 'healthcare-critical',
+    name: 'Patient Emergency & Medical Ethics',
+    industry: 'HEALTHCARE',
+    description: 'Emergency triage, infection control, ethical dilemmas.',
+    icon: 'ðŸ¥', color: '#00695C',
+    scenarioIds: ['patient-emergency-response', 'infection-control',
+                  'medical-ethics-dilemma', 'medical-communication'],
+    complianceFramework: 'MCI Guidelines',
+  },
+  'banking-fraud': {
+    id: 'banking-fraud',
+    name: 'Fraud Detection & Financial Compliance',
+    industry: 'BANKING_FINANCE',
+    description: 'Phishing, insider threats, KYC fraud, RBI compliance.',
+    icon: 'ðŸ¦', color: '#6A1B9A',
+    scenarioIds: ['phishing-email-detection', 'insider-threat-scenario',
+                  'kyc-fraud-attempt', 'rbi-compliance-breach'],
+    complianceFramework: 'RBI Compliance',
+  },
+}
+2.2  Add industry-specific scenarios to lib/scenarios.ts
+Use the same createMiniScenario() pattern already in your codebase. Here is one full example for manufacturing â€” replicate this for each package:
+// In lib/scenarios.ts â€” add to the SCENARIOS object:
+'machine-malfunction': createMiniScenario({
+  id: 'machine-malfunction',
+  title: 'Machine Malfunction Alert',
+  category: 'Manufacturing Safety',
+  mode: 'Simulation',
+  icon: 'âš™ï¸',
+  difficulty: 3,
+  duration: '8 min',
+  color: '#E65100',
+  triggerWarnings: ['Workplace accident risk'],
+  intensity: 'high',
+  context: 'You are operating a lathe machine. An unusual vibration starts.',
+  backgroundMood: 'linear-gradient(135deg, #1a0a00 0%, #3e1c00 100%)',
+  prompt: 'The machine begins vibrating violently. A warning light flashes red.',
+  saferChoice: 'Immediately press the emergency stop and inform your supervisor.',
+  assertiveChoice: 'Stop the machine, step back, alert nearby workers.',
+  riskyChoice: 'Continue working â€” it might stop on its own.',
+  tip: 'Any abnormal machine behaviour is a stop-work signal. Never continue.',
+}),
+Add one createMiniScenario() block per scenarioId listed in each ENTERPRISE_PACKAGES entry. Aim for 4-6 scenarios per package to start.
+3. AI Coach Industry Context  (lib/ai/)
+Your existing chatbot.ts hardcodes a women's safety system prompt. For enterprise, the system prompt must adapt to the organisation's industry and the employee's job role. The change is surgical â€” one new function, one modified call.
+3.1  Create lib/ai/industryPrompts.ts
+// lib/ai/industryPrompts.ts
+export function buildEnterpriseSystemPrompt(
+  industry: string,
+  jobRole: string,
+  complianceFramework?: string
+): string {
+  const industryContext: Record<string, string> = {
+    CORPORATE_IT: `You are a corporate compliance coach for IT professionals.
+      Focus on POSH Act, workplace ethics, and professional conduct.`,
+    MANUFACTURING: `You are a factory safety coach.
+      Focus on machine safety, PPE, emergency procedures, chemical hazards.
+      Cite Factories Act 1948 where relevant.`,
+    HEALTHCARE: `You are a clinical training coach.
+      Focus on patient safety, infection control, medical ethics, triage.`,
+    BANKING_FINANCE: `You are a financial compliance coach.
+      Focus on fraud detection, phishing, RBI regulations, insider threats.`,
+  }
+  const base = industryContext[industry] ??
+    'You are a workplace safety and compliance coach.'
+  return `${base}
+  Employee role: ${jobRole}.
+  ${complianceFramework ? `Compliance framework: ${complianceFramework}.` : ''}
+  Give concise, actionable feedback (max 120 words).
+  Never victim-blame. Be empowering and practical.`
+}
+3.2  Modify /api/coach/feedback/route.ts
+The feedback route currently builds a generic prompt. Add an optional industry context:
+// In app/api/coach/feedback/route.ts, modify the POST handler:
+const body = await req.json()
+const { scenarioId, nodeId, choiceId, choiceText,
+        riskLevel, industry, jobRole, complianceFramework } = body
+// industry, jobRole, complianceFramework are optional â€” sent by enterprise clients
+// Build system prompt conditionally:
+import { buildEnterpriseSystemPrompt } from '@/lib/ai/industryPrompts'
+const systemPrompt = industry
+  ? buildEnterpriseSystemPrompt(industry, jobRole ?? 'Employee', complianceFramework)
+  : buildSystemPrompt()  // existing consumer prompt â€” unchanged
+3.3  Send industry context from ScenarioCore
+In app/scenario/[id]/ScenarioCore.tsx, the handleChoice function calls /api/coach/feedback. Pass enterprise context if available:
+// In ScenarioCore.tsx â€” add orgContext prop:
+interface ScenarioCoreProps {
+  scenarioId: string
+  routeVariant?: 'legacy' | 'mode'
+  orgContext?: {        // â† NEW optional prop
+    industry: string
+    jobRole: string
+    complianceFramework?: string
+  }
+}
+// In handleChoice(), add to the fetch body:
+body: JSON.stringify({
+  scenarioId: scenario.id,
+  nodeId: currentNodeId,
+  choiceId,
+  choiceText: choice.text,
+  riskLevel: next.risk,
+  ...props.orgContext,   // â† spreads industry, jobRole, complianceFramework
+}),
+4. Manager Dashboard  (app/org/)
+Managers need to see team progress without seeing individual user PII. Build this as a new route group parallel to /admin/*.
+4.1  Route structure to create
+File path
+Purpose
+app/org/[orgId]/dashboard/page.tsx
+Org-level analytics â€” completion rates, avg scores
+app/org/[orgId]/members/page.tsx
+Member list with training status badges
+app/org/[orgId]/reports/page.tsx
+Generate & download compliance reports
+app/org/[orgId]/packages/page.tsx
+Manage active scenario packages
+app/org/[orgId]/layout.tsx
+Shared org shell â€” sidebar nav, auth guard
+app/api/org/[orgId]/analytics/route.ts
+GET â€” aggregated org/dept stats
+app/api/org/[orgId]/members/route.ts
+GET members, POST invite, DELETE remove
+app/api/org/[orgId]/reports/route.ts
+POST generate report, GET list reports
+4.2  app/org/[orgId]/layout.tsx  â€” auth guard
+Every org page must verify the session user is an OrgMember with MANAGER or ORG_ADMIN orgRole:
+import { auth } from '@/auth'
+import { db } from '@/lib/prisma'
+import { redirect } from 'next/navigation'
+export default async function OrgLayout({ children, params }) {
+  const session = await auth()
+  if (!session?.user?.id) redirect('/login')
+  const { orgId } = await params
+  const membership = await db.orgMember.findUnique({
+    where: { userId_orgId: { userId: session.user.id, orgId } }
+  })
+  const allowed = ['MANAGER', 'ORG_ADMIN', 'ADMIN']
+  if (!membership || !allowed.includes(membership.orgRole)) {
+    redirect('/dashboard')
+  }
+  return <>{children}</>
+}
+4.3  app/api/org/[orgId]/analytics/route.ts
+This is the data engine for the manager dashboard. It aggregates ScenarioRun and RolePlaySession data for all OrgMembers:
+export async function GET(req, { params }) {
+  const { orgId } = await params
+  // 1. Get all userIds in this org
+  const members = await db.orgMember.findMany({
+    where: { orgId },
+    select: { userId: true, jobRole: true, dept: { select: { name: true } } }
+  })
+  const userIds = members.map(m => m.userId)
+  // 2. Aggregate ScenarioRuns for those users
+  const runs = await db.scenarioRun.findMany({
+    where: { userId: { in: userIds }, status: 'COMPLETED' },
+    select: { userId: true, scenarioId: true,
+              finalConfidence: true, finalEq: true, finalRisk: true }
+  })
+  // 3. Build per-user summary
+  const byUser = userIds.map(uid => {
+    const userRuns = runs.filter(r => r.userId === uid)
+    return {
+      userId: uid,
+      completedScenarios: userRuns.length,
+      avgConfidence: avg(userRuns.map(r => r.finalConfidence ?? 50)),
+      avgEq:         avg(userRuns.map(r => r.finalEq ?? 50)),
+      avgRisk:       avg(userRuns.map(r => r.finalRisk ?? 40)),
+    }
+  })
+  return NextResponse.json({
+    totalMembers: members.length,
+    completionRate: pct(byUser.filter(u => u.completedScenarios > 0).length, members.length),
+    avgOrgConfidence: avg(byUser.map(u => u.avgConfidence)),
+    memberStats: byUser,
+  })
+}
+Helper: function avg(nums) { return nums.length ? Math.round(nums.reduce((a,b)=>a+b,0)/nums.length) : 0 }
+5. Compliance Reports  (app/api/org/[orgId]/reports/)
+Companies need audit-ready records. Generate a CSV report of all employee training completions for a time period, downloadable from the manager dashboard.
+5.1  POST /api/org/[orgId]/reports â€” generate CSV
+import { stringify } from 'csv-stringify/sync'  // npm install csv-stringify
+import { writeFile } from 'fs/promises'
+import path from 'path'
+export async function POST(req, { params }) {
+  const { orgId } = await params
+  const { period } = await req.json()  // e.g. '2025-Q1'
+  const members = await db.orgMember.findMany({
+    where: { orgId },
+    include: { user: { select: { name: true, email: true } },
+               dept: { select: { name: true } } }
+  })
+  const rows = await Promise.all(members.map(async m => {
+    const cert = await db.userCertificate.findUnique({
+      where: { userId: m.userId }
+    })
+    const runs = await db.scenarioRun.count({
+      where: { userId: m.userId, status: 'COMPLETED' }
+    })
+    return {
+      Name:         m.user.name ?? 'Unknown',
+      Email:        m.user.email ?? '',
+      Department:   m.dept?.name ?? 'Unassigned',
+      Role:         m.jobRole ?? '',
+      'Scenarios Completed': runs,
+      'Certificate Issued':  cert ? 'Yes' : 'No',
+      'Certificate Date':    cert?.issuedAt?.toISOString().split('T')[0] ?? '',
+      'Cert Code':           cert?.code ?? '',
+    }
+  }))
+  const csv = stringify(rows, { header: true })
+  const filename = `compliance-${orgId}-${period}-${Date.now()}.csv`
+  const filepath = path.join(process.cwd(), 'public', 'reports', filename)
+  await writeFile(filepath, csv)
+  await db.complianceReport.create({
+    data: { orgId, period, csvUrl: `/reports/${filename}` }
+  })
+  return NextResponse.json({ csvUrl: `/reports/${filename}` })
+}
+Create public/reports/ directory and add it to .gitignore. For production, replace writeFile with an S3/R2 upload using the AWS SDK or @cloudflare/workers-types.
+6. Employee Invitation Flow  (app/api/org/[orgId]/invite/)
+Employees don't sign up themselves â€” managers invite them. Invitation = email with a special token that auto-joins them to the org on first login.
+6.1  Add OrgInvitation model to prisma/schema.prisma
+model OrgInvitation {
+  id        String   @id @default(cuid())
+  orgId     String
+  email     String
+  deptId    String?
+  jobRole   String?
+  token     String   @unique @default(cuid())
+  expiresAt DateTime
+  usedAt    DateTime?
+  org       Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  @@index([email])
+  @@index([token])
+}
+6.2  POST /api/org/[orgId]/invite
+// Sends invitation email with join link
+export async function POST(req, { params }) {
+  const { orgId } = await params
+  const { email, deptId, jobRole } = await req.json()
+  const invite = await db.orgInvitation.create({
+    data: {
+      orgId, email, deptId, jobRole,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+    }
+  })
+  const joinUrl = `${process.env.NEXTAUTH_URL}/join?token=${invite.token}`
+  await sendInvitationEmail(email, joinUrl, orgId)  // lib/email.ts
+  return NextResponse.json({ success: true })
+}
+6.3  app/join/page.tsx â€” accept invitation
+// Reads ?token= from URL, validates, creates/links user to org
+// If user not registered: redirects to /register?invite=TOKEN
+// If user registered: calls POST /api/join with token to create OrgMember
+// After join: redirects to /dashboard with org context
+7. AI Personalisation by Job Role
+When an employee logs in through an org context, their job role and department risk profile determine which scenarios are recommended first and how the AI coach frames feedback.
+7.1  Create lib/enterprise/personalisation.ts
+// lib/enterprise/personalisation.ts
+interface PersonalisationContext {
+  industry:    string
+  jobRole:     string
+  deptRisk:    string  // e.g. 'high-machinery'
+  packageIds:  string[]
+}
+export function getRecommendedScenarios(
+  ctx: PersonalisationContext,
+  allPackages: typeof ENTERPRISE_PACKAGES
+): string[] {
+  // Filter packages for this employee's org
+  const orgPackages = ctx.packageIds
+    .map(id => allPackages[id])
+    .filter(Boolean)
+  // Prioritise scenarios matching job role keywords
+  const roleKeywords = ctx.jobRole.toLowerCase().split(' ')
+  const scored = orgPackages.flatMap(p => p.scenarioIds).map(sid => ({
+    sid,
+    score: roleKeywords.filter(kw => sid.includes(kw)).length
+  }))
+  return scored.sort((a,b) => b.score - a.score).map(s => s.sid)
+}
+7.2  Use in /api/org/[orgId]/recommended-scenarios
+export async function GET(req, { params }) {
+  const session = await auth()
+  const { orgId } = await params
+  const member = await db.orgMember.findUnique({
+    where: { userId_orgId: { userId: session.user.id, orgId } },
+    include: { org: { include: { packages: true } }, dept: true }
+  })
+  const scenarioIds = getRecommendedScenarios({
+    industry:   member.org.industry,
+    jobRole:    member.jobRole ?? 'Employee',
+    deptRisk:   member.dept?.riskProfile ?? '',
+    packageIds: member.org.packages.map(p => p.packageId),
+  }, ENTERPRISE_PACKAGES)
+  return NextResponse.json({ scenarioIds })
+}
+8. Manager Dashboard UI  (app/org/[orgId]/dashboard/page.tsx)
+This is a server component that fetches from /api/org/[orgId]/analytics and renders the org-level overview. Key metrics to show:
+Metric Card
+Data source
+Total Members
+OrgMember.count()
+Completion Rate %
+users with â‰¥1 completed run / total
+Avg Confidence Score
+mean finalConfidence across all completed runs
+Avg Risk Score
+mean finalRisk â€” lower is better
+Certificates Issued
+UserCertificate.count() for org userIds
+Pending Invitations
+OrgInvitation.count() where usedAt is null
+8.1  Member table with training status
+Below the metric cards, render a table of members. Each row shows:
+Employee name and department
+Scenarios completed (count of COMPLETED ScenarioRuns)
+Last active date (most recent ScenarioRun.startedAt)
+Certificate status â€” green tick or amber pending badge
+Risk level badge â€” colour coded from their avg finalRisk
+Do NOT show individual scenario choices or personal decisions to managers â€” only aggregate scores. This protects employee privacy and builds trust in the platform.
+9. Business Model â€” Pricing Pages & License Gating
+9.1  Create app/enterprise/page.tsx  (public landing)
+A marketing page explaining the enterprise offering. Include:
+Hero: "Replace boring PowerPoint HR training with AI simulations"
+Industry selector cards (Corporate / Manufacturing / Healthcare / Banking)
+Pricing tiers table (see below)
+CTA: "Request a Demo" â†’ contact form â†’ creates a lead record
+9.2  Pricing tiers to display
+Tier
+Price
+Ideal For
+Per Seat
+â‚¹300â€“800 / employee / year
+SMEs, 10â€“200 employees
+Enterprise
+â‚¹5â€“20 lakh / year flat
+Large companies 200+ seats
+Custom Package
+â‚¹1â€“5 lakh one-time
+Custom scenario development
+Trial
+30 days free, 10 seats
+Pilot programmes
+9.3  License gating in middleware
+File: middleware.ts (create if not exists)
+// Check org license before allowing /org/* routes
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl
+  if (!pathname.startsWith('/org/')) return NextResponse.next()
+  const orgId = pathname.split('/')[2]
+  // Fetch org from DB (use edge-compatible Prisma or a lightweight check)
+  // If org.expiresAt && org.expiresAt < new Date():
+  //   redirect to /enterprise/expired
+  return NextResponse.next()
+}
+export const config = { matcher: ['/org/:path*'] }
+10. Implementation Order â€” Do This Sequence
+Do not jump around. Each step builds on the previous one.
+Step
+Task
+Est. Time
+1
+Add Prisma schema changes (Sections 1.1â€“1.9), migrate
+2h
+2
+Create lib/enterprise/packages.ts with 4 packages
+1h
+3
+Add 4 industry scenarios to lib/scenarios.ts (1 per package)
+2h
+4
+Create lib/ai/industryPrompts.ts + patch /api/coach/feedback
+1h
+5
+Build /api/org/[orgId]/analytics route
+2h
+6
+Build app/org/[orgId]/layout.tsx auth guard
+1h
+7
+Build app/org/[orgId]/dashboard/page.tsx UI
+3h
+8
+Build invitation flow (model + POST /invite + /join page)
+3h
+9
+Build compliance report generator (CSV, Section 5)
+2h
+10
+Build app/enterprise/page.tsx marketing landing
+2h
+11
+Add remaining scenario content (4-6 per package)
+4h
+12
+Wire personalisation (lib/enterprise/personalisation.ts)
+2h
+Total estimated implementation time: ~25 hours of focused development. Steps 1â€“6 are the minimum viable enterprise version. Steps 7â€“12 complete the product.
+11. Demo Script for Judges
+If asked "How will industries use your product?" â€” say exactly this:
+One-liner: 
+"SafePath is an AI-powered simulation training platform where employees practice real workplace scenarios â€” safety incidents, ethical dilemmas, compliance situations â€” before facing them in real life. Instead of boring PowerPoint training, they make decisions, get instant AI feedback, and earn verifiable compliance certificates."
+11.1  Live demo walkthrough (3 minutes)
+Slide 1 â€” Show the manufacturing scenario: machine malfunction, three choices, Risk Meter updating in real time
+Slide 2 â€” Show the AI coach panel: industry-specific feedback citing Factories Act 1948
+Slide 3 â€” Switch to Manager Dashboard: completion rate, avg confidence, member table with certificate badges
+Slide 4 â€” Show the compliance report download (CSV with name, dept, cert date)
+Slide 5 â€” Show the enterprise pricing page and "Request Demo" CTA
+11.2  Industry-specific answers for judge questions
+Judge question
+Your answer
+"Why not just use LMS like Moodle?"
+"LMS delivers content. SafePath makes employees practice decisions in real-time under pressure, with AI feedback. Outcome-based learning vs. content delivery."
+"How is this better than video training?"
+"Video is passive. Our simulations are branching â€” your choices change the outcome. Decision-making muscle memory is built by doing, not watching."
+"How do you handle data privacy for employees?"
+"Managers only see aggregate scores. Individual choices and session content are never exposed to employers."
+"What is your go-to-market?"
+"Pilot with 1 manufacturing company (10 seats, free 30-day trial). Convert to â‚¹300/seat/year. Upsell to full enterprise license at scale."
+SafePath Enterprise Implementation Guide  |  Based on github.com/SmritiD2004/safepath  |  v1.0

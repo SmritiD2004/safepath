@@ -52,6 +52,14 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
   const [missedNodes, setMissedNodes] = useState<Array<{ nodeId: string; description: string; choices: typeof scenario.nodes[string]['choices'] }>>([])
   const [isResuming, setIsResuming] = useState(Boolean(resumeRunId))
 
+  const [customResponse, setCustomResponse] = useState('')
+  const [showCustomInput, setShowCustomInput] = useState(false)
+
+  // Reset custom input when node changes
+  useEffect(() => {
+    setCustomResponse('')
+    setShowCustomInput(false)
+  }, [currentNodeId])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const hasStartedRef = useRef(false)
   const hasCompletedRef = useRef(false)
@@ -121,10 +129,10 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
     const isRetry = missedNodes.some(m => m.nodeId === currentNodeId)
     if (isRetry) {
       setIsCritical(true)
-      setTimeLeft(30)
+      setTimeLeft(120)
     } else if (phase === 'playing' && (scenario?.intensity === 'high' || scenario?.mode === 'Simulation')) {
       setIsCritical(true)
-      setTimeLeft(15)
+      setTimeLeft(120)
     } else {
       setIsCritical(false)
     }
@@ -295,20 +303,70 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
     }
   }
 
+  const handleCustomResponse = async () => {
+    const text = customResponse.trim()
+    if (!text || selectedChoice || !scenario) return
+    const currentNode = scenario.nodes[currentNodeId]
+    if (!currentNode) return
+
+    // Use the best-scoring choice as the structural "next node" anchor,
+    // but send the user's actual text to the coach API for personalised feedback
+    const anchor = currentNode.choices[0]
+    if (!anchor) return
+
+    setSelectedChoice('custom')
+    setPhase('coaching')
+    setLoadingCoach(true)
+    void recordChoice('custom')
+
+    const next = applyChoiceScoring({ risk: riskLevel, confidence, eq: eqScore }, anchor)
+    setRiskLevel(next.risk)
+    setConfidence(next.confidence)
+    setEqScore(next.eq)
+
+    try {
+      const res = await fetch('/api/coach/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scenarioId: scenario.id,
+          nodeId: currentNodeId,
+          choiceId: 'custom',
+          choiceText: text,
+          riskLevel: next.risk,
+        }),
+      })
+      const data = await res.json()
+      setCoaching(data)
+    } catch {
+      setCoaching({
+        feedback: `Your response: "${text}" — shows independent thinking. Make sure it aligns with a safety-first mindset.`,
+        hint: anchor.aiCoachNote,
+        riskDelta: anchor.riskImpact,
+        eqDelta: anchor.eqImpact,
+        coachMood: 'evaluating',
+      })
+    } finally {
+      setLoadingCoach(false)
+    }
+  }
+
   const continueScenario = () => {
     const currentNode = scenario.nodes[currentNodeId]
-    const choice = currentNode.choices.find(c => c.id === selectedChoice)
+    const choice = selectedChoice === 'custom'
+      ? currentNode.choices[0]
+      : currentNode.choices.find(c => c.id === selectedChoice)
     if (!choice) return
 
     const wasRetryingMissed = missedNodes.some(m => m.nodeId === currentNodeId)
 
     setSelectedChoice(null)
     setCoaching(null)
+    setCustomResponse('')
+    setShowCustomInput(false)
 
     if (wasRetryingMissed) {
-      // Remove this node from missed list — player has now answered it
       setMissedNodes(prev => prev.filter(m => m.nodeId !== currentNodeId))
-      // Apply the choice scoring benefit (optimistic — reward the attempt)
       setPhase('end')
       return
     }
@@ -359,9 +417,8 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
 
     // When time pressure is active, always use fast MCQ buttons —
     // chat / scanner widgets are incompatible with countdown urgency
-    const rawType = currentNode.interactionType || (currentNode.choices ? 'mcq' : null)
-    const type = isCritical && rawType === 'chat' ? 'mcq' : rawType
-
+   const rawType = currentNode.interactionType || (currentNode.choices ? 'mcq' : null)
+const type = scenario.mode === 'Simulation' ? 'mcq' : rawType
     switch (type) {
       case 'red-flag':
         return (
@@ -439,6 +496,7 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
                   alignItems: 'center',
                   gap: 16,
                   padding: '16px 20px',
+                  minHeight: 44,
                   background: 'rgba(9, 18, 36, 0.7)',
                   border: '1px solid rgba(255, 176, 214, 0.22)',
                   borderRadius: 14,
@@ -476,6 +534,151 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
                 </span>
               </motion.button>
             ))}
+
+            {/* ── Write your own response ─────────────────────────────── */}
+            {!isCritical && (
+              <div style={{ marginTop: 4 }}>
+                {!showCustomInput ? (
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowCustomInput(true)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '12px 20px',
+                      background: 'transparent',
+                      border: '1px dashed rgba(255, 176, 214, 0.3)',
+                      borderRadius: 14,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s ease',
+                    }}
+                    className="scenario-choice-btn"
+                  >
+                    <div style={{
+                      flexShrink: 0,
+                      width: 40,
+                      height: 40,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 10,
+                      background: 'rgba(255, 127, 170, 0.07)',
+                      border: '1px dashed rgba(255, 127, 170, 0.3)',
+                      fontSize: 18,
+                      color: 'var(--muted)',
+                    }}>
+                      ✏️
+                    </div>
+                    <span style={{
+                      fontSize: 13,
+                      color: 'var(--muted)',
+                      fontFamily: 'var(--font-heading)',
+                      fontStyle: 'italic',
+                    }}>
+                      Write your own response…
+                    </span>
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      background: 'rgba(9, 18, 36, 0.85)',
+                      border: '1px solid rgba(255, 176, 214, 0.35)',
+                      borderRadius: 14,
+                      padding: '16px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{
+                      fontSize: 10,
+                      letterSpacing: '0.1em',
+                      color: 'var(--accent)',
+                      fontFamily: 'var(--font-orbitron)',
+                      textTransform: 'uppercase',
+                      marginBottom: 2,
+                    }}>
+                      ✏️ Your Own Response
+                    </div>
+                    <textarea
+                      autoFocus
+                      value={customResponse}
+                      onChange={e => setCustomResponse(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && customResponse.trim()) {
+                          handleCustomResponse()
+                        }
+                      }}
+                      placeholder="Describe what you would actually do in this situation…"
+                      rows={3}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255, 176, 214, 0.2)',
+                        borderRadius: 10,
+                        padding: '12px 14px',
+                        color: 'var(--text)',
+                        fontFamily: 'var(--font-heading)',
+                        fontSize: 14,
+                        lineHeight: 1.5,
+                        resize: 'none',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic', marginRight: 'auto' }}>
+                        ⌘↵ to submit
+                      </span>
+                      <button
+                        onClick={() => { setShowCustomInput(false); setCustomResponse('') }}
+                        style={{
+                          padding: '6px 14px',
+                          background: 'transparent',
+                          border: '1px solid rgba(255,176,214,0.2)',
+                          borderRadius: 8,
+                          color: 'var(--muted)',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-heading)',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <motion.button
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={handleCustomResponse}
+                        disabled={!customResponse.trim()}
+                        style={{
+                          padding: '7px 18px',
+                          background: customResponse.trim()
+                            ? 'rgba(255, 127, 170, 0.2)'
+                            : 'rgba(255,255,255,0.04)',
+                          border: `1px solid ${customResponse.trim() ? 'rgba(255,127,170,0.5)' : 'rgba(255,176,214,0.15)'}`,
+                          borderRadius: 8,
+                          color: customResponse.trim() ? 'var(--accent)' : 'var(--muted)',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: customResponse.trim() ? 'pointer' : 'default',
+                          fontFamily: 'var(--font-orbitron)',
+                          letterSpacing: '0.05em',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        Submit →
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            )}
           </div>
         )
     }
@@ -750,7 +953,9 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
       <div className="space-bg" aria-hidden="true" />
 
       {/* HUD header */}
-      <header style={{
+      <header
+        className="scenario-hud"
+        style={{
         position: 'fixed',
         top: 0,
         left: 0,
@@ -766,7 +971,7 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
         borderBottom: '1px solid rgba(255, 176, 214, 0.18)',
       }}>
         {/* Brand + scene info */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        <div className="scenario-hud-brand" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
               width: 10, height: 10, borderRadius: '50%',
@@ -790,13 +995,13 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
         </div>
 
         {/* Stats HUD */}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+        <div className="scenario-hud-stats" style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
           {[
             { label: 'RISK', value: riskLevel, color: riskColor },
             { label: 'CONF', value: confidence, color: '#89f7ff' },
             { label: 'EQ', value: eqScore, color: '#ffc4dd' },
           ].map(m => (
-            <div key={m.label} style={{
+            <div key={m.label} className="scenario-hud-pill" style={{
               background: 'rgba(9,18,36,0.8)',
               border: `1px solid ${m.color}33`,
               borderRadius: 10,
@@ -812,7 +1017,7 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
             </div>
           ))}
 
-          <Link href="/dashboard" style={{
+          <Link href="/dashboard" className="scenario-hud-exit" style={{
             fontSize: 11,
             color: 'var(--muted)',
             textDecoration: 'none',
@@ -920,22 +1125,23 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
                 {isCritical && (
                   <div style={{
                     background: 'rgba(9,18,36,0.82)',
-                    border: `1px solid ${timeLeft < 6 ? '#ff4f7a44' : 'rgba(255,176,214,0.2)'}`,
+                    border: `1px solid ${timeLeft < 20 ? '#ff4f7a44' : 'rgba(255,176,214,0.2)'}`,
+
                     borderRadius: 12,
                     padding: '12px 16px',
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontSize: 10, letterSpacing: '0.1em', color: timeLeft < 6 ? '#ff4f7a' : missedNodes.some(m => m.nodeId === currentNodeId) ? '#ffc06b' : 'var(--accent)', fontFamily: 'var(--font-orbitron)' }}>
+                      <span style={{ fontSize: 10, letterSpacing: '0.1em', color: timeLeft < 20 ? '#ff4f7a' : missedNodes.some(m => m.nodeId === currentNodeId) ? '#ffc06b' : 'var(--accent)', fontFamily: 'var(--font-orbitron)' }}>
                         {missedNodes.some(m => m.nodeId === currentNodeId) ? '⏱ RETRY TIMER' : '⏱ TIME PRESSURE'}
                       </span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, color: timeLeft < 6 ? '#ff4f7a' : '#ffc06b', fontWeight: 700 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, color: timeLeft < 20 ? '#ff4f7a' : timeLeft < 40 ? '#ffc06b' : '#89f7ff', fontWeight: 700 }}>
                         {timeLeft}s
                       </span>
                     </div>
                     <div style={{ height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
                       <motion.div
                         style={{ height: '100%', borderRadius: 999, background: `linear-gradient(90deg, #ffc06b, ${timeLeft < 6 ? '#ff4f7a' : '#ff7faa'})` }}
-                        animate={{ width: `${(timeLeft / 15) * 100}%` }}
+                        animate={{ width: `${(timeLeft / 120) * 100}%` }}
                         transition={{ duration: 1, ease: 'linear' }}
                       />
                     </div>
@@ -1080,6 +1286,33 @@ export default function ScenarioCore({ scenarioId }: ScenarioCoreProps) {
       </main>
 
       <style>{`
+        .scenario-hud {
+          flex-wrap: wrap;
+        }
+        .scenario-hud-stats {
+          flex-wrap: wrap;
+        }
+        @media (max-width: 640px) {
+          .scenario-hud {
+            gap: 8px;
+            padding: 10px 14px;
+          }
+          .scenario-hud-brand {
+            width: 100%;
+          }
+          .scenario-hud-stats {
+            width: 100%;
+            justify-content: space-between;
+            gap: 8px;
+          }
+          .scenario-hud-pill {
+            min-width: 56px;
+            padding: 4px 8px;
+          }
+          .scenario-hud-exit {
+            margin-left: auto;
+          }
+        }
         @media (max-width: 768px) {
           .scenario-grid {
             grid-template-columns: 1fr !important;

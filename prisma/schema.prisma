@@ -15,6 +15,7 @@ model User {
   image         String?
   passwordHash  String?
   role          UserRole  @default(USER)
+  industry      Industry?
   isAnonymous   Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -25,6 +26,7 @@ model User {
   tipPractices  UserTipPractice[]
   rolePlaySessions RolePlaySession[]
   certificate   UserCertificate?
+  orgMemberships OrgMember[]
 }
 
 model Account {
@@ -197,6 +199,24 @@ model UserCertificate {
 enum UserRole {
   USER
   ADMIN
+  MANAGER
+  ORG_ADMIN
+}
+
+enum Industry {
+  CORPORATE_IT
+  MANUFACTURING
+  HEALTHCARE
+  BANKING_FINANCE
+  RETAIL
+  EDUCATION
+  CUSTOM
+}
+
+enum LicenseType {
+  PER_SEAT
+  ENTERPRISE
+  TRIAL
 }
 
 enum AssessmentType {
@@ -220,4 +240,90 @@ enum RolePlaySpeaker {
   USER
   NPC
   SYSTEM
+}
+
+model Organisation {
+  id            String       @id @default(cuid())
+  name          String
+  industry      Industry
+  logoUrl       String?
+  accessCodeHash   String?   @unique
+  accessCodeLast4  String?
+  accessCodeIssuedAt DateTime?
+  accessCodeActive Boolean   @default(false)
+  licenseType   LicenseType  @default(PER_SEAT)
+  seatLimit     Int          @default(50)
+  activatedAt   DateTime     @default(now())
+  expiresAt     DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  departments   Department[]
+  members       OrgMember[]
+  packages      OrgScenarioPackage[]
+  reports       ComplianceReport[]
+  invitations   OrgInvitation[]
+}
+
+model Department {
+  id            String       @id @default(cuid())
+  orgId         String
+  name          String
+  riskProfile   String?
+  org           Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members       OrgMember[]
+
+  @@index([orgId])
+}
+
+model OrgMember {
+  id            String       @id @default(cuid())
+  userId        String
+  orgId         String
+  deptId        String?
+  jobRole       String?
+  orgRole       UserRole     @default(USER)
+  joinedAt      DateTime     @default(now())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org           Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  dept          Department?  @relation(fields: [deptId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+  @@index([deptId])
+}
+
+model OrgScenarioPackage {
+  id            String       @id @default(cuid())
+  orgId         String
+  packageId     String
+  enabledAt     DateTime     @default(now())
+  org           Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, packageId])
+}
+
+model ComplianceReport {
+  id            String       @id @default(cuid())
+  orgId         String
+  generatedAt   DateTime     @default(now())
+  period        String
+  csvUrl        String?
+  org           Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, generatedAt])
+}
+
+model OrgInvitation {
+  id        String   @id @default(cuid())
+  orgId     String
+  email     String
+  deptId    String?
+  jobRole   String?
+  token     String   @unique @default(cuid())
+  expiresAt DateTime
+  usedAt    DateTime?
+  org       Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([token])
 }

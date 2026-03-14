@@ -28,6 +28,7 @@ type CoachRequest = {
   choiceText: string
   playerHistory?: string[]
   riskLevel?: number
+  systemPromptOverride?: string
 }
 
 type CoachResponse = {
@@ -121,6 +122,7 @@ function parseCoachJson(raw: string): CoachResponse | null {
 async function fromAnthropic(input: CoachRequest): Promise<CoachResponse | null> {
   if (!process.env.ANTHROPIC_API_KEY) return null
 
+  const system = input.systemPromptOverride ?? systemPrompt(input)
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -132,7 +134,7 @@ async function fromAnthropic(input: CoachRequest): Promise<CoachResponse | null>
       model: 'claude-3-5-sonnet-latest',
       max_tokens: 500,
       temperature: 0.3,
-      system: systemPrompt(input),
+      system,
       messages: [{ role: 'user', content: 'Return the JSON coach response.' }],
     }),
   })
@@ -147,6 +149,7 @@ async function fromAnthropic(input: CoachRequest): Promise<CoachResponse | null>
 async function fromGroq(input: CoachRequest): Promise<CoachResponse | null> {
   if (!process.env.GROQ_API_KEY) return null
 
+  const system = input.systemPromptOverride ?? systemPrompt(input)
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -158,7 +161,7 @@ async function fromGroq(input: CoachRequest): Promise<CoachResponse | null> {
       max_tokens: 500,
       temperature: 0.4,
       messages: [
-        { role: 'system', content: systemPrompt(input) },
+        { role: 'system', content: system },
         { role: 'user', content: 'Return the JSON coach response.' },
       ],
     }),

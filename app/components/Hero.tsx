@@ -151,7 +151,8 @@ export default function Hero() {
           display: inline-flex;
           align-items: flex-end;
           justify-content: center;
-          /* let it grow to fill the column but not expand it */
+          width: 100%;
+          /* let it grow to fill the column */
           max-width: 100%;
         }
 
@@ -162,7 +163,7 @@ export default function Hero() {
           display: block;
           /* fill the column */
           width: 100%;
-          max-width: 720px;
+          max-width: none;
           height: auto;
           /* nudge up — the image has empty space at bottom */
           margin-bottom: -20px;

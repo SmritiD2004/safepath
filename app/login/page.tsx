@@ -9,6 +9,7 @@ import StarBorder from '../components/StarBorder'
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [loginType, setLoginType] = useState<'individual' | 'org' | 'platform'>('individual')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
@@ -115,6 +116,44 @@ async function resendVerification() {
             Do not have an account?{' '}
             <Link href="/signup" style={{ color: 'var(--wine)', textDecoration: 'none', fontWeight: 600 }}>Sign up free</Link>
           </p>
+
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-mid)', marginBottom: 8 }}>
+              Login As
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+              {[
+                { id: 'individual', label: 'Individual' },
+                { id: 'org', label: 'Organization' },
+                { id: 'platform', label: 'Platform Admin' },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setLoginType(item.id as typeof loginType)}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: `1.5px solid ${loginType === item.id ? 'var(--wine)' : 'var(--border)'}`,
+                    background: loginType === item.id ? 'rgba(255,111,145,0.14)' : 'rgba(255,255,255,0.03)',
+                    color: loginType === item.id ? 'var(--wine)' : 'var(--text)',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+              {loginType === 'platform'
+                ? 'Platform admins are redirected to the admin panel after login.'
+                : loginType === 'org'
+                  ? 'Organization admins are redirected to their org dashboard.'
+                  : 'Individuals are taken to the training dashboard.'}
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>

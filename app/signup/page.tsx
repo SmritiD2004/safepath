@@ -23,6 +23,25 @@ const AVATAR_OPTIONS = [
   '/avatars/kavya.svg',
 ]
 
+const INDUSTRIES = [
+  { id: 'CORPORATE_IT', label: 'Corporate IT & Tech' },
+  { id: 'MANUFACTURING', label: 'Manufacturing & Industrial' },
+  { id: 'EDUCATION', label: 'Education & Academia' },
+  { id: 'RETAIL', label: 'Retail & Hospitality' },
+  { id: 'BANKING_FINANCE', label: 'Banking & Finance' },
+  { id: 'CUSTOM', label: 'Other / General' }
+]
+
+type IndustryId = (typeof INDUSTRIES)[number]['id']
+type SignupPayload = {
+  name: string
+  email: string
+  password: string
+  avatar: string
+  industry?: IndustryId
+  orgCode?: string
+}
+
 export default function SignupPage() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('details')
@@ -31,7 +50,10 @@ export default function SignupPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [accountType, setAccountType] = useState<'individual' | 'org' | 'platform'>('individual')
   const [role, setRole] = useState('')
+  const [industry, setIndustry] = useState('')
+  const [orgCode, setOrgCode] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [agreeTrauma, setAgreeTrauma] = useState(false)
   const [verifyLink, setVerifyLink] = useState('')
@@ -50,12 +72,23 @@ export default function SignupPage() {
   async function submitRole() {
     if (!role) return setError('Please select your role.')
     if (!agreeTrauma) return setError('Please acknowledge the content notice.')
+    if (role === 'professional' && !orgCode && !industry) {
+      return setError('Please select your industry or enter an organization code.')
+    }
     setLoading(true)
+
+    const payload: SignupPayload = { name, email, password, avatar }
+    if (role === 'professional' && industry && !orgCode) {
+      payload.industry = industry
+    }
+    if (orgCode.trim()) {
+      payload.orgCode = orgCode.trim()
+    }
 
     const registerRes = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, avatar }),
+      body: JSON.stringify(payload),
     })
 
     if (!registerRes.ok) {
@@ -113,6 +146,44 @@ export default function SignupPage() {
                 Already have one? <Link href="/login" style={{ color: 'var(--wine)', textDecoration: 'none', fontWeight: 600 }}>Log in</Link>
               </p>
 
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-mid)', marginBottom: 8 }}>
+                  Sign Up As
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+                  {[
+                    { id: 'individual', label: 'Individual' },
+                    { id: 'org', label: 'Organization' },
+                    { id: 'platform', label: 'Platform Admin' },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setAccountType(item.id as typeof accountType)}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        border: `1.5px solid ${accountType === item.id ? 'var(--wine)' : 'var(--border)'}`,
+                        background: accountType === item.id ? 'rgba(255,111,145,0.14)' : 'rgba(255,255,255,0.03)',
+                        color: accountType === item.id ? 'var(--wine)' : 'var(--text)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                  {accountType === 'platform'
+                    ? 'Platform admins are created by the SafePath team.'
+                    : accountType === 'org'
+                      ? 'Use your organization access code during signup.'
+                      : 'Individuals choose their industry for personalized scenarios.'}
+                </div>
+              </div>
+
               <form onSubmit={submitDetails} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                 <Field label="Full Name">
                   <input className="input-field" type="text" value={name} onChange={(e) => { setName(e.target.value); setError('') }} />
@@ -154,6 +225,42 @@ export default function SignupPage() {
                   </button>
                 ))}
               </div>
+
+              {role === 'professional' && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>What industry do you work in?</div>
+                  <select
+                    className="input-field"
+                    value={industry}
+                    onChange={(e) => { setIndustry(e.target.value); setError('') }}
+                    style={{ width: '100%', appearance: 'none', background: 'rgba(255,255,255,0.03)', border: '1.5px solid var(--border)', padding: '12px 14px', borderRadius: 8, color: 'var(--text)', cursor: 'pointer' }}
+                  >
+                    <option value="" disabled style={{ background: 'var(--bg)', color: 'var(--text-muted)' }}>Select your industry...</option>
+                    {INDUSTRIES.map(ind => (
+                      <option key={ind.id} value={ind.id} style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+                        {ind.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>
+                  Have an organization access code?
+                </div>
+                <input
+                  className="input-field"
+                  type="text"
+                  value={orgCode}
+                  onChange={(e) => { setOrgCode(e.target.value); setError('') }}
+                  placeholder="Enter code (optional)"
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                  If you enter a valid code, your account will be linked to that organization.
+                </div>
+              </div>
+
               <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 10 }}>Choose your squad avatar</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 18 }}>
                 {AVATAR_OPTIONS.map((item, index) => (
